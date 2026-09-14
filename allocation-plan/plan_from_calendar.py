@@ -25,7 +25,7 @@
 # No third-party dependencies (stdlib only).
 # =============================================================
 
-import sys, re, json, csv, argparse
+import sys, os, re, json, csv, argparse
 from datetime import datetime, timedelta, date
 from urllib.request import urlopen, Request
 
@@ -37,6 +37,27 @@ ROLE_TO_PIR={"project manager":"PM","delivery manager":"DM","data scientist":"DS
  "solution architect":"ENG (TS)","engineering manager":"ENG (TS)"}
 MUNICIPAL={"Lisbon":(6,13),"Porto":(6,24),"Coimbra":(7,4)}
 OOO_SUFFIX="- Out of Office"; HALF_DAY=("- Afternoon","- Morning")
+
+# ---------------- .env ----------------
+def load_env_value(key):
+    """Read a single KEY from the project .env (one dir up), if present.
+    Minimal parser: KEY=value or KEY="value"; ignores comments/blank lines."""
+    env_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+    env_path=os.path.normpath(env_path)
+    if not os.path.isfile(env_path):
+        return None
+    try:
+        for line in open(env_path, encoding="utf-8"):
+            line=line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k,v=line.split("=",1)
+            if k.strip()==key:
+                v=v.strip().strip('"').strip("'")
+                return v or None
+    except OSError:
+        return None
+    return None
 
 # ---------------- ICS ----------------
 def load_ics(url=None, path=None):
@@ -275,7 +296,8 @@ def write_csv(cfg, plan, out):
 def main():
     ap=argparse.ArgumentParser(description="Build allocation plan CSV from a config + calendar.")
     ap.add_argument("config", help="plan config JSON")
-    ap.add_argument("--file", help="local .ics file (overrides ics_url in config)")
+    ap.add_argument("--file", help="local .ics file (highest priority calendar source)")
+    ap.add_argument("--url", help="ICS URL (overrides config ics_url and .env HIBOB_ICS_URL)")
     ap.add_argument("-o","--output", help="output CSV path (default stdout)")
     ap.add_argument("--no-calendar", action="store_true", help="ignore calendar; use only explicit pto in config")
     args=ap.parse_args()
@@ -283,12 +305,26 @@ def main():
     cfg=json.load(open(args.config, encoding="utf-8"))
     events=None
     if not args.no_calendar:
-        src_file=args.file; src_url=cfg.get("ics_url")
-        if src_file or src_url:
-            raw=load_ics(url=None if src_file else src_url, path=src_file)
-            events=parse_events(raw)
+        # calendar source precedence:
+        #   --file  >  --url  >  config ics_url  >  .env HIBOB_ICS_URL
+        src_file=args.file
+        src_url=(args.url or cfg.get("ics_url") or load_env_value("HIBOB_ICS_URL"))
+        # treat the example placeholder as "not set"
+        if src_url and "REPLACE" in src_url:
+            src_url=None
+        if src_file:
+            events=parse_events(load_ics(path=src_file))
+            sys.stderr.write(f"Calendar: local file {src_file}\n")
+        elif src_url:
+            events=parse_events(load_ics(url=src_url))
+            where = "--url" if args.url else ("config" if cfg.get("ics_url") and "REPLACE" not in (cfg.get("ics_url") or "") else ".env HIBOB_ICS_URL")
+            sys.stderr.write(f"Calendar: fetched from {where}\n")
         else:
-            sys.stderr.write("No ics_url in config and no --file; proceeding with explicit PTO only.\n")
+            sys.stderr.write(
+                "No calendar source found. PTO will use only explicit 'pto' in the config.\n"
+                "  → First-run tip: copy .env.example to .env and set HIBOB_ICS_URL to your\n"
+                "    personal calendar feed, then it's picked up automatically every run.\n"
+                "    (Or pass --url / --file, or add ics_url to the config.)\n")
 
     plan=build_plan(cfg, events)
 
