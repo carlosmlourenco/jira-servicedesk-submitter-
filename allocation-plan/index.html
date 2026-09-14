@@ -5,43 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Allocation Plan Builder</title>
 <style>
-  :root { --line:#d9dee5; --grey:#eef1f4; --ok:#1f8a4c; --bad:#c0392b; --accent:#2a5bd7; }
+  /* Feedzai brand palette: dark forest green #232F0F + lime accent #B9FF8D */
+  :root {
+    --brand:#232F0F; --accent:#B9FF8D; --accent-ink:#232F0F;
+    --line:#e0e2d8; --grey:#f2f4ec; --ink:#232F0F; --muted:#6b7261;
+    --ok:#2f7d32; --bad:#b3261e;
+  }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-         margin: 0; padding: 24px; color:#1c2530; background:#f7f9fb; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .sub { color:#5a6675; font-size: 13px; margin-bottom: 20px; }
-  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 18px; padding:14px 16px; background:#fff; }
-  legend { font-weight:600; font-size:13px; padding:0 6px; color:#3a4656; }
-  label { display:block; font-size:12px; color:#5a6675; margin-bottom:3px; }
-  input, select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
-  input:focus, select:focus { outline:2px solid var(--accent); border-color:var(--accent); }
+         margin: 0; color:var(--ink); background:#f6f7f2; }
+  .brandbar { background:var(--brand); color:#fff; padding:16px 24px; display:flex; align-items:center; gap:12px; }
+  .brandbar .logo { width:26px; height:26px; border-radius:6px; background:var(--accent);
+    display:inline-flex; align-items:center; justify-content:center; color:var(--brand); font-weight:800; font-size:15px; }
+  .brandbar .name { font-weight:700; letter-spacing:.2px; }
+  .brandbar .tag { color:var(--accent); font-size:12px; font-weight:600; }
+  .wrap { padding:24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; color:var(--brand); }
+  .sub { color:var(--muted); font-size: 13px; margin-bottom: 20px; }
+  fieldset { border:1px solid var(--line); border-radius:10px; margin:0 0 18px; padding:14px 16px; background:#fff; }
+  legend { font-weight:700; font-size:13px; padding:0 6px; color:var(--brand); }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
+  input, select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); }
+  input:focus, select:focus { outline:2px solid var(--brand); border-color:var(--brand); }
   .hdr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
   table { border-collapse:collapse; width:100%; font-size:12px; }
   th, td { border:1px solid var(--line); padding:4px 6px; text-align:center; white-space:nowrap; }
-  th { background:var(--grey); position:sticky; top:0; font-weight:600; }
-  td.calc { background:var(--grey); color:#3a4656; font-variant-numeric:tabular-nums; }
-  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
-  td input, td select { border:none; width:100%; text-align:center; padding:4px; background:transparent; }
+  th { background:var(--brand); color:#fff; position:sticky; top:0; font-weight:600; }
+  td.calc { background:var(--grey); color:var(--brand); font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  td input, td select { border:none; width:100%; text-align:center; padding:4px; background:transparent; color:var(--ink); }
   td.wk input { width:52px; }
   td.meta input, td.meta select { min-width:130px; text-align:left; }
-  .btn { font:inherit; font-weight:600; padding:8px 14px; border:none; border-radius:6px; cursor:pointer; }
-  .btn-primary { background:var(--accent); color:#fff; }
-  .btn-ghost { background:#fff; border:1px solid var(--line); color:#3a4656; }
+  .btn { font:inherit; font-weight:700; padding:8px 14px; border:none; border-radius:6px; cursor:pointer; }
+  .btn-primary { background:var(--accent); color:var(--accent-ink); }
+  .btn-primary:hover { filter:brightness(0.96); }
+  .btn-ghost { background:#fff; border:1px solid var(--brand); color:var(--brand); }
+  .btn-ghost:hover { background:var(--grey); }
   .btn-danger { background:#fff; border:1px solid var(--line); color:var(--bad); }
   .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0; align-items:center; }
-  .pill { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:600; }
-  .pill.ok { background:#e5f5ec; color:var(--ok); }
-  .pill.bad { background:#fbe9e7; color:var(--bad); }
+  .pill { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:700; }
+  .pill.ok { background:var(--accent); color:var(--brand); }
+  .pill.bad { background:#fbe1de; color:var(--bad); }
   .warn { color:var(--bad); font-size:12px; margin-top:8px; white-space:pre-line; }
   .pir th, .pir td { text-align:left; }
-  .muted { color:#8a95a3; }
+  .muted { color:var(--muted); }
   details { margin-bottom:16px; }
-  summary { cursor:pointer; font-size:13px; color:var(--accent); }
-  code { background:var(--grey); padding:1px 5px; border-radius:4px; }
+  summary { cursor:pointer; font-size:13px; color:var(--brand); font-weight:600; }
+  code { background:var(--grey); padding:1px 5px; border-radius:4px; color:var(--brand); }
 </style>
 </head>
 <body>
+  <div class="brandbar"><span class="logo">F</span><span class="name">Feedzai</span><span class="tag">Allocation Planner</span></div>
+  <div class="wrap">
   <h1>Allocation Plan Builder</h1>
   <div class="sub">Fill the header and resource grid; totals compute live. Download a CSV in the CR template format. Everything runs locally in your browser.</div>
 
@@ -100,6 +115,7 @@
     <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
     <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
   </div>
+  </div><!-- /.wrap -->
 
 <script>
 const HOURS_PER_DAY = 8, FULL_WEEK = 5, MIN=0.25, MAXLINE=4;
