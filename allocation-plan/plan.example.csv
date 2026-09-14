@@ -1,0 +1,27 @@
+Paysafe | RMA - Billable,,,(Mandatory fields),Project Start date,05/01/2026
+,,,,Project End date,31/08/2026
+Cost Tracker ID,a6eW50000000QlhIAE,,,Hours per day,8
+
+,,,,,,,Weekly Resourcing Need
+,,,(Mandatory fields),,,,2026
+Name Suggestion,Days per role,Hours per role,FTE Average,ROLE,PREFERRED ALLOCATION AREA,PREFERRED SENIORITY,05/01,12/01,19/01,26/01,02/02,09/02,16/02,23/02,02/03,09/03,16/03,23/03,30/03,06/04,13/04,20/04,27/04,04/05,11/05,18/05,25/05,01/06,08/06,15/06,22/06,29/06,06/07,13/07,20/07,27/07,03/08,10/08,17/08,24/08,31/08
+,36,288.00,0.42,Project Manager,EMEA,Senior Professional,2,2,2,2,4,2,2,2,2,2,2,2,2,2,2,2,2,,,,,,,,,,,,,,,,,,
+,12,96.00,0.14,Data Scientist,GDC,Senior Professional,0.5,0.5,0.5,0.5,4,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,,,,,,,,,,,,,,,,,,
+,49,392.00,0.58,Data Scientist,GDC,Professional,3,3,3,3,1,3,3,3,3,3,3,3,3,3,3,3,3,,,,,,,,,,,,,,,,,,
+,11,88.00,0.28,Business Analyst,GDC,Senior Professional,1,1,1,1,4,1,1,1,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,34,272.00,0.40,Risk Consultant,GDC,Senior Professional,3,3,3,3,4,3,3,3,1,1,1,1,1,1,1,1,1,,,,,,,,,,,,,,,,,,
+,12,96.00,0.14,Solution Architect,GDC,Senior Professional,0.5,0.5,0.5,0.5,4,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,,,,,,,,,,,,,,,,,,
+,8.5,68.00,0.10,Risk&AI Manager,GDC,Senior Professional,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,,,,,,,,,,,,,,,,,,
+TOTAL,162.5,1300
+
+
+,,(Use below values in the PIR),(Mandatory field)
+Time Loging,Days,Hours,BPE Hours per role,AI Comment
+DM,0,0,30,hours missing
+PM,36,288,512,hours missing
+DS,61,488,440,exceed
+RiskC,42.5,340,96,exceed
+BA,11,88,180,hours missing
+ENG (TS),12,96,,
+Total,162.5,1300
+Total Values Match?,TRUE

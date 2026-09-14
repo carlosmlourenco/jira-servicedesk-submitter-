@@ -1,0 +1,22 @@
+[HEADER]
+project_name,Paysafe | RMA - Billable
+start_date,05/01/2026
+end_date,31/08/2026
+cost_tracker_id,a6eW50000000QlhIAE
+
+[RESOURCES]
+Name Suggestion,ROLE,PREFERRED ALLOCATION AREA,PREFERRED SENIORITY,05/01,12/01,19/01,26/01,02/02,09/02,16/02,23/02,02/03,09/03,16/03,23/03,30/03,06/04,13/04,20/04,27/04
+,Project Manager,EMEA,Senior Professional,2,2,2,2,4,2,2,2,2,2,2,2,2,2,2,2,2
+,Data Scientist,GDC,Senior Professional,0.5,0.5,0.5,0.5,4,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5
+,Data Scientist,GDC,Professional,3,3,3,3,1,3,3,3,3,3,3,3,3,3,3,3,3
+,Business Analyst,GDC,Senior Professional,1,1,1,1,4,1,1,1,,,,,,,,,
+,Risk Consultant,GDC,Senior Professional,3,3,3,3,4,3,3,3,1,1,1,1,1,1,1,1,1
+,Solution Architect,GDC,Senior Professional,0.5,0.5,0.5,0.5,4,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5
+,Risk&AI Manager,GDC,Senior Professional,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5
+
+[BPE]
+DM,30
+PM,512
+DS,440
+RiskC,96
+BA,180
