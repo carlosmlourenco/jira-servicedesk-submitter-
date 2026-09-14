@@ -64,6 +64,16 @@
       <button class="btn btn-ghost" id="addPlan">+ Add resource</button>
       <button class="btn btn-primary" id="generate">⚙ Generate allocation</button>
     </div>
+    <div class="toolbar" style="border-top:1px dashed var(--line); padding-top:12px">
+      <label style="margin:0; font-weight:600; color:#3a4656">📅 Calendar (.ics):</label>
+      <input type="file" id="icsFile" accept=".ics,text/calendar" style="border:none">
+      <button class="btn btn-ghost" id="fillPto">Fill PTO from calendar</button>
+      <span class="muted" id="icsStatus" style="font-size:12px"></span>
+    </div>
+    <div class="muted" style="font-size:12px">
+      Download your HiBob calendar once (it exports an <code>.ics</code>), load it above, then
+      "Fill PTO from calendar" matches each resource by name and fills their PTO. Nothing is uploaded — parsed in your browser.
+    </div>
     <div class="muted" style="font-size:12px">
       Capacity = max days/week (≤4). PTO = comma-separated ranges like <code>18/09/2026-25/09/2026</code>.
       "Covers for" = pick a same-role teammate whose PTO weeks this person fills.
@@ -447,6 +457,85 @@ function loadTwint(){
   addPlanRow({name:"Miguel Pereira",role:"Data Scientist",cap:3.5,city:"Lisbon",pto:"18/09/2026-25/09/2026",backup:"Clara Pereira"});
   generate();
 }
+
+// ---------- Calendar (.ics) import: fill PTO by name ----------
+let icsEvents=null;   // parsed [{summary, start:Date, endInclusive:Date}]
+const OOO_SUFFIX="- Out of Office";
+const HALF_DAY_MARKERS=["- Afternoon","- Morning"];
+
+function icsParseDate(v){
+  v=(v||"").trim();
+  // YYYYMMDD or YYYYMMDDThhmmssZ
+  const m=v.match(/^(\d{4})(\d{2})(\d{2})/);
+  if(!m) return null;
+  return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+}
+function parseICS(text){
+  text=text.replace(/\r?\n[ \t]/g,"");   // unfold folded lines
+  const out=[]; let cur=null;
+  text.split(/\r?\n/).forEach(ln=>{
+    if(ln.startsWith("BEGIN:VEVENT")) cur={};
+    else if(ln.startsWith("END:VEVENT")){ if(cur) out.push(cur); cur=null; }
+    else if(cur){
+      const i=ln.indexOf(":"); if(i<0) return;
+      const key=ln.slice(0,i).split(";")[0]; const val=ln.slice(i+1).trim();
+      cur[key]=val;
+    }
+  });
+  return out.map(e=>{
+    const ds=icsParseDate(e.DTSTART);
+    let de=icsParseDate(e.DTEND);
+    // iCal DTEND is exclusive for all-day events -> last day = DTEND - 1
+    let last=ds;
+    if(de){ last=new Date(de); last.setDate(last.getDate()-1); if(last<ds) last=ds; }
+    return { summary:e.SUMMARY||"", start:ds, endInclusive:last };
+  }).filter(e=>e.start);
+}
+function personName(su){ let s=su; if(s.includes(OOO_SUFFIX)) s=s.split(OOO_SUFFIX)[0]; return s.replace(/^[\s-]+|[\s-]+$/g,""); }
+function isHalfDay(su){ return HALF_DAY_MARKERS.some(m=>su.includes(m)); }
+function nameMatches(query, calName){
+  const qs=query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const t=calName.toLowerCase();
+  return qs.length>0 && qs.every(w=>t.includes(w));
+}
+function ptoStringFor(query){
+  if(!icsEvents) return null;
+  const ranges=[];
+  icsEvents.forEach(e=>{
+    if(!e.summary.includes(OOO_SUFFIX) || isHalfDay(e.summary)) return;
+    if(!nameMatches(query, personName(e.summary))) return;
+    ranges.push([e.start, e.endInclusive]);
+  });
+  ranges.sort((a,b)=>a[0]-b[0]);
+  const f=d=>`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+  return ranges.map(([s,e])=>`${f(s)}-${f(e)}`).join(", ");
+}
+function fillPtoFromCalendar(){
+  const status=document.getElementById("icsStatus");
+  if(!icsEvents){ status.textContent="Load an .ics file first."; status.style.color="#c0392b"; return; }
+  let filled=0, nomatch=[];
+  document.querySelectorAll("#planRows .plan-row").forEach(w=>{
+    const name=w.querySelector(".p-name").value.trim();
+    if(!name) return;
+    const pto=ptoStringFor(name);
+    if(pto){ w.querySelector(".p-pto").value=pto; filled++; }
+    else nomatch.push(name);
+  });
+  status.style.color=filled?"#1f8a4c":"#c0392b";
+  status.textContent=`Filled PTO for ${filled} resource(s)`+(nomatch.length?` · no calendar match: ${nomatch.join(", ")}`:"");
+}
+document.getElementById("icsFile").addEventListener("change",ev=>{
+  const file=ev.target.files[0]; const status=document.getElementById("icsStatus");
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{ try{ icsEvents=parseICS(reader.result);
+      const ppl=new Set(icsEvents.filter(e=>e.summary.includes(OOO_SUFFIX)&&!isHalfDay(e.summary)).map(e=>personName(e.summary)));
+      status.style.color="#1f8a4c";
+      status.textContent=`Loaded "${file.name}" — ${icsEvents.length} events, ${ppl.size} people. Now click "Fill PTO from calendar".`;
+    }catch(e){ status.style.color="#c0392b"; status.textContent="Could not parse .ics: "+e.message; icsEvents=null; } };
+  reader.readAsText(file);
+});
+document.getElementById("fillPto").addEventListener("click",fillPtoFromCalendar);
 
 document.getElementById("addPlan").addEventListener("click",()=>addPlanRow());
 document.getElementById("generate").addEventListener("click",generate);
