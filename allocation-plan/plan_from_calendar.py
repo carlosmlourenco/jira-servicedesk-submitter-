@@ -60,10 +60,21 @@ def load_env_value(key):
     return None
 
 # ---------------- ICS ----------------
+def _ssl_context():
+    """Build an SSL context. Prefer certifi's CA bundle (works around macOS
+    python.org installs that lack system CA certs); fall back to the default."""
+    import ssl
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
 def load_ics(url=None, path=None):
     if path: return open(path, encoding="utf-8", errors="replace").read()
     req=Request(url, headers={"User-Agent":"plan-from-calendar/1.0"})
-    with urlopen(req, timeout=30) as r: return r.read().decode("utf-8","replace")
+    with urlopen(req, timeout=30, context=_ssl_context()) as r:
+        return r.read().decode("utf-8","replace")
 
 def parse_events(raw):
     raw=re.sub(r"\r?\n[ \t]","",raw); events=[]; cur=None
@@ -308,16 +319,20 @@ def main():
         # calendar source precedence:
         #   --file  >  --url  >  config ics_url  >  .env HIBOB_ICS_URL
         src_file=args.file
-        src_url=(args.url or cfg.get("ics_url") or load_env_value("HIBOB_ICS_URL"))
-        # treat the example placeholder as "not set"
-        if src_url and "REPLACE" in src_url:
-            src_url=None
+        cfg_url=cfg.get("ics_url")
+        # treat placeholder example URLs as "not set" so we fall through to .env
+        if cfg_url and "REPLACE" in cfg_url:
+            cfg_url=None
+        env_url=load_env_value("HIBOB_ICS_URL")
+        if env_url and "REPLACE" in env_url:
+            env_url=None
+        src_url=(args.url or cfg_url or env_url)
         if src_file:
             events=parse_events(load_ics(path=src_file))
             sys.stderr.write(f"Calendar: local file {src_file}\n")
         elif src_url:
             events=parse_events(load_ics(url=src_url))
-            where = "--url" if args.url else ("config" if cfg.get("ics_url") and "REPLACE" not in (cfg.get("ics_url") or "") else ".env HIBOB_ICS_URL")
+            where = "--url flag" if args.url else ("config ics_url" if cfg_url else ".env HIBOB_ICS_URL")
             sys.stderr.write(f"Calendar: fetched from {where}\n")
         else:
             sys.stderr.write(
