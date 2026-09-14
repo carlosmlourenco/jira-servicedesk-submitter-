@@ -205,7 +205,7 @@ function addPlanRow(d){
     <div><label>Capacity (d/wk)</label><input class="p-cap" type="number" step="0.25" min="0.25" max="4" value="${d.cap!=null?d.cap:""}"></div>
     <div><label>City</label><select class="p-city">${CITIES.map(c=>`<option ${c===d.city?"selected":""}>${c}</option>`).join("")}</select></div>
     <div><label>PTO ranges</label><input class="p-pto" placeholder="18/09/2026-25/09/2026" value="${d.pto||""}"></div>
-    <div><label>Covers for</label><input class="p-cover" placeholder="name" value="${d.cover||""}"></div>
+    <div><label>Backup (name)</label><input class="p-backup" placeholder="covers this person's PTO" value="${d.backup||""}"></div>
     <div><button class="btn btn-danger p-del">✕</button></div>`;
   wrap.querySelector(".p-del").addEventListener("click",()=>wrap.remove());
   document.getElementById("planRows").appendChild(wrap);
@@ -219,7 +219,7 @@ function readPlan(){
       cap:parseFloat(w.querySelector(".p-cap").value),
       city:w.querySelector(".p-city").value,
       pto:parsePTO(w.querySelector(".p-pto").value),
-      cover:w.querySelector(".p-cover").value.trim()
+      backup:w.querySelector(".p-backup").value.trim()
     });
   });
   return rows;
@@ -256,17 +256,24 @@ function generate(){
       return {days:capDays,hol,pto};
     });
   }
-  // auto-cover: coverer picks up covered person's planned days during covered PTO weeks
-  const capByName={}; hands.forEach(h=>capByName[h.name]=weeklyCapacity(h));
-
-  // Determine covered weeks per coverer
-  hands.forEach(h=>{
-    if(!h.cover) return;
-    const target=hands.find(x=>x.name.toLowerCase()===h.cover.toLowerCase());
-    if(!target){ note.push(`"${h.name}" covers for "${h.cover}" but no such resource — ignored.`); return; }
-    if((target.role||"").toLowerCase()!==(h.role||"").toLowerCase()){
-      note.push(`"${h.name}" and "${h.cover}" have different roles — cover ignored (same-role only).`); return; }
+  // ---- Auto-spawn BACKUP resources from each primary's "Backup (name)" field ----
+  // A backup inherits the primary's role, city and capacity. It covers the EXACT
+  // days the primary is off each week (PTO days), starting at the primary's first
+  // PTO week. Backups are added as hands-on resources flagged coverFor=<primary>.
+  hands.filter(h=>h.backup).forEach(prim=>{
+    const bname=prim.backup;
+    if(hands.some(x=>x.name.toLowerCase()===bname.toLowerCase())){
+      note.push(`Backup "${bname}" already exists as a resource — using the existing row.`);
+      return;
+    }
+    hands.push({
+      name:bname, role:prim.role, cap:prim.cap, city:prim.city,
+      pto:[], backup:"", coverFor:prim.name, spawned:true
+    });
+    note.push(`Auto-created backup "${bname}" (${prim.role}, ${prim.city}) covering ${prim.name}'s PTO.`);
   });
+
+  const capByName={}; hands.forEach(h=>capByName[h.name]=weeklyCapacity(h));
 
   // Build weekly allocation, consuming shared budget until cap.
   let remaining=cap;
@@ -278,19 +285,18 @@ function generate(){
     // base capacity
     const workThisWeek=[];
     hands.forEach(h=>{
-      // A resource with a valid same-role "covers for" target is a COVER resource:
-      // it is idle every week EXCEPT weeks the target is fully off (PTO), where it
-      // takes the target's planned days (capped at its own max). A resource with no
-      // (or invalid) cover works its own capacity normally.
-      const t = h.cover ? hands.find(x=>x.name.toLowerCase()===h.cover.toLowerCase()) : null;
-      const validCover = t && (t.role||"").toLowerCase()===(h.role||"").toLowerCase();
+      // A BACKUP resource (coverFor set) is idle except in weeks its primary has
+      // PTO, where it covers the EXACT number of days the primary lost that week
+      // (capped at the backup's own capacity, floored at 0.25 when working).
       let dcap;
-      if(validCover){
-        const tOff = capByName[t.name][wi].days===0 && capByName[t.name][wi].pto>0;
-        if(!tOff){ return; }                       // cover resource idle when target is working
-        dcap=Math.min(t.cap, h.cap);
-        if(dcap<MIN)dcap=MIN;
+      if(h.coverFor){
+        const t=hands.find(x=>x.name.toLowerCase()===h.coverFor.toLowerCase());
+        if(!t){ return; }
+        const primPto=capByName[t.name][wi].pto;   // weekday PTO days the primary has this week
+        if(primPto<=0){ return; }                  // primary working -> backup idle
+        dcap=Math.min(primPto, h.cap);             // cover exactly the days off, up to own cap
         dcap=Math.round(dcap/MIN)*MIN;
+        if(dcap<MIN) dcap=MIN;
       } else {
         dcap=capByName[h.name][wi].days;           // normal worker
       }
@@ -438,8 +444,7 @@ function loadTwint(){
   document.getElementById("totalHours").value="400";
   document.getElementById("planRows").innerHTML="";
   addPlanRow({name:"Carlos Lourenco",role:"Project Manager",cap:0.25,city:"Lisbon"});
-  addPlanRow({name:"Miguel Pereira",role:"Data Scientist",cap:3.5,city:"Lisbon",pto:"18/09/2026-25/09/2026"});
-  addPlanRow({name:"Clara Pereira",role:"Data Scientist",cap:3.5,city:"Lisbon",cover:"Miguel Pereira"});
+  addPlanRow({name:"Miguel Pereira",role:"Data Scientist",cap:3.5,city:"Lisbon",pto:"18/09/2026-25/09/2026",backup:"Clara Pereira"});
   generate();
 }
 
