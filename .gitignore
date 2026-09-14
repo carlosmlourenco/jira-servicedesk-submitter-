@@ -14,3 +14,7 @@
 *.log
 tmp/
 out/
+
+# Calendar / PTO data — may contain personal info, never commit
+*.ics
+
