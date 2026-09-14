@@ -1,4 +1,38 @@
 {
-  "summary": "Short one-line title of the request",
-  "description": "The full details of what you need, in plain text."
+  "_comment": "Change Request template. Keys must be the REAL field IDs from ./discover-fields.sh (e.g. summary, customfield_XXXXX). The names below are placeholders to be replaced. Dates use the format the portal shows (e.g. 14/Sep/26) unless discovery says otherwise. Yes/No and Region need option ids. Remove _comment lines before submitting.",
+
+  "summary": "CR: <short title>",
+
+  "REPLACE_cr_justification": "Root Cause: ... | Why needed: ... | Implication of not doing: ... | Lesson learned: ...",
+  "REPLACE_will_this_cr_fix": { "id": "<option-id-for-Yes-or-No>" },
+  "REPLACE_avoidable_concession": { "id": "<option-id-for-Yes-or-No>" },
+  "REPLACE_additional_scope": "",
+
+  "REPLACE_certinia_project_url": "https://...",
+  "REPLACE_certinia_project_name": "<project name>",
+  "REPLACE_salesforce_opportunity_id": "",
+
+  "REPLACE_region_project": { "id": "<option-id>" },
+  "REPLACE_project_forecast_page": "https://...",
+
+  "REPLACE_current_project_due_date": "14/Sep/26",
+  "REPLACE_new_estimated_due_date": "14/Sep/26",
+  "REPLACE_budget_exhaustion_date": "14/Sep/26",
+
+  "REPLACE_total_remaining_hours": 0,
+  "REPLACE_additional_hours_required": 0,
+  "REPLACE_additional_hours_requested": 0,
+
+  "REPLACE_leakage_client_induced": 0,
+  "REPLACE_leakage_executive_commitment": 0,
+  "REPLACE_leakage_force_majeure": 0,
+  "REPLACE_leakage_poor_deal_construction": 0,
+  "REPLACE_leakage_personnel_quality": 0,
+  "REPLACE_leakage_team_estimate_variances": 0,
+  "REPLACE_leakage_contract_variances": 0,
+  "REPLACE_leakage_pqi": 0,
+
+  "REPLACE_project_manager": { "accountId": "<atlassian-accountId>" },
+  "REPLACE_engineering_manager": { "accountId": "<atlassian-accountId>" },
+  "REPLACE_risk_ai_manager": { "accountId": "<atlassian-accountId>" }
 }
