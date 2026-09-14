@@ -1,0 +1,15 @@
+{
+  "project_name": "twint",
+  "start_date": "14/09/2026",
+  "end_date": "31/12/2026",
+  "cost_tracker_id": "12-346-7",
+  "total_hours": 400,
+
+  "_comment_ics": "Your personal HiBob (or other) ICS feed URL. Keep this file private — copy it to plan-config.json (git-ignored) and paste your real URL there. You can also pass a downloaded file with --file instead.",
+  "ics_url": "https://cal.example.com/REPLACE/ics/REPLACE-TOKEN",
+
+  "resources": [
+    { "name": "Carlos Lourenco", "role": "Project Manager", "capacity": 0.25, "city": "Lisbon" },
+    { "name": "Miguel Pereira",  "role": "Data Scientist",   "capacity": 3.5,  "city": "Lisbon", "backup": "Clara Pereira" }
+  ]
+}

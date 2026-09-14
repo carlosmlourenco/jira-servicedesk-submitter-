@@ -18,3 +18,10 @@ out/
 # Calendar / PTO data — may contain personal info, never commit
 *.ics
 
+# Real plan configs contain a personal calendar token URL — keep private.
+# Only plan-config.example.json (placeholder URL) is committed.
+plan-config.json
+*-plan-config.json
+plan-config.*.json
+!plan-config.example.json
+

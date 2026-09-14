@@ -15,8 +15,37 @@ computes every derived value so the output matches the official spreadsheet.
    the hours run out, reducing weeks for Portugal holidays (national + Lisbon /
    Porto / Coimbra municipal) and PTO, auto-covering PTO with a same-role
    teammate, and filling the final week to hit the cap exactly.
+4. **`plan_from_calendar.py`** — fully automated bridge: reads a JSON config,
+   **fetches a calendar (ICS) and auto-fills each resource's PTO by name**, then
+   runs the same spread as the planner and writes the plan CSV. No copy-paste.
 
-## Run (CLI)
+## Calendar-driven planning (recommended)
+
+```bash
+# 1. copy the example config and add your details + calendar URL
+cp plan-config.example.json plan-config.json   # plan-config.json is git-ignored
+# edit plan-config.json: project, resources, and your ics_url
+
+# 2. generate — PTO is pulled from the calendar automatically
+python3 plan_from_calendar.py plan-config.json -o plan.csv
+
+# or with a downloaded calendar file instead of a URL:
+python3 plan_from_calendar.py plan-config.json --file cal.ics -o plan.csv
+```
+
+- PTO is matched by name (contains-all-words, e.g. "Clara Pereira" matches
+  "Clara Gomes Ramos Pereira"). Half-day events are ignored. iCal exclusive
+  DTEND is corrected to an inclusive last day.
+- `backup` on a resource auto-creates a same-role cover that fills the primary's
+  exact days off (its own calendar PTO is respected too).
+- **Privacy:** your calendar URL is a personal token. `plan-config.json` and any
+  `*.ics` file are git-ignored; only `plan-config.example.json` (placeholder
+  URL) is committed. Never commit real PTO data or the token URL.
+
+To extract one person's PTO without generating a full plan, use
+`pto_from_ics.py` (see its header for usage).
+
+## Run (CLI, manual CSV input)
 
 ```bash
 python3 generate_plan.py input.csv -o plan.csv
