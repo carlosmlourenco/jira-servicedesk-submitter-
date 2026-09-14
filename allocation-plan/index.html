@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Allocation Plan Builder</title>
+<style>
+  :root { --line:#d9dee5; --grey:#eef1f4; --ok:#1f8a4c; --bad:#c0392b; --accent:#2a5bd7; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+         margin: 0; padding: 24px; color:#1c2530; background:#f7f9fb; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color:#5a6675; font-size: 13px; margin-bottom: 20px; }
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 18px; padding:14px 16px; background:#fff; }
+  legend { font-weight:600; font-size:13px; padding:0 6px; color:#3a4656; }
+  label { display:block; font-size:12px; color:#5a6675; margin-bottom:3px; }
+  input, select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--accent); border-color:var(--accent); }
+  .hdr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th, td { border:1px solid var(--line); padding:4px 6px; text-align:center; white-space:nowrap; }
+  th { background:var(--grey); position:sticky; top:0; font-weight:600; }
+  td.calc { background:var(--grey); color:#3a4656; font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+  td input, td select { border:none; width:100%; text-align:center; padding:4px; background:transparent; }
+  td.wk input { width:52px; }
+  td.meta input, td.meta select { min-width:130px; text-align:left; }
+  .btn { font:inherit; font-weight:600; padding:8px 14px; border:none; border-radius:6px; cursor:pointer; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-ghost { background:#fff; border:1px solid var(--line); color:#3a4656; }
+  .btn-danger { background:#fff; border:1px solid var(--line); color:var(--bad); }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0; align-items:center; }
+  .pill { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:600; }
+  .pill.ok { background:#e5f5ec; color:var(--ok); }
+  .pill.bad { background:#fbe9e7; color:var(--bad); }
+  .warn { color:var(--bad); font-size:12px; margin-top:8px; white-space:pre-line; }
+  .pir th, .pir td { text-align:left; }
+  .muted { color:#8a95a3; }
+  details { margin-bottom:16px; }
+  summary { cursor:pointer; font-size:13px; color:var(--accent); }
+  code { background:var(--grey); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+  <h1>Allocation Plan Builder</h1>
+  <div class="sub">Fill the header and resource grid; totals compute live. Download a CSV in the CR template format. Everything runs locally in your browser.</div>
+
+  <details>
+    <summary>How weekly values &amp; calculations work</summary>
+    <div class="sub" style="margin-top:8px">
+      Weekly cells are <b>days per week</b> (0.25–4, multiples of 0.25). Blank = not allocated (excluded from FTE average).
+      <b>Hours</b> = days × 8. <b>FTE</b> = average of filled weeks ÷ 5.
+      PIR groups roles: DS = Data Scientist + Data Analyst; RiskC = Risk Consultant + Risk&amp;AI Manager;
+      ENG (TS) = Software Engineer + Technical Lead + Solution Architect + Engineering Manager.
+      <b>AI Comment</b>: planned &lt; BPE → "hours missing"; &gt; BPE → "exceed". <b>Match?</b> = grid total hours == PIR total hours.
+    </div>
+  </details>
+
+  <fieldset>
+    <legend>Project</legend>
+    <div class="hdr-grid">
+      <div><label>Project name</label><input id="projName" placeholder="twint" style="width:100%"></div>
+      <div><label>Start date</label><input id="startDate" type="date" style="width:100%"></div>
+      <div><label>End date</label><input id="endDate" type="date" style="width:100%"></div>
+      <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7" style="width:100%"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Resources — weekly allocation (days/week)</legend>
+    <div class="scroll">
+      <table id="grid">
+        <thead><tr id="gridHead"></tr></thead>
+        <tbody id="gridBody"></tbody>
+        <tfoot><tr id="gridTotal"></tr></tfoot>
+      </table>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-ghost" id="addRow">+ Add resource</button>
+      <span class="muted" style="font-size:12px">Weeks are generated from the start/end dates.</span>
+    </div>
+    <div class="warn" id="warnings"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>PIR — Time Logging &amp; BPE</legend>
+    <div class="scroll">
+      <table class="pir">
+        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours (input)</th><th>AI Comment</th></tr></thead>
+        <tbody id="pirBody"></tbody>
+        <tfoot><tr id="pirTotal"></tr></tfoot>
+      </table>
+    </div>
+    <div class="toolbar">
+      <span id="matchPill" class="pill ok">Total Values Match? —</span>
+    </div>
+  </fieldset>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
+    <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
+  </div>
+
+<script>
+const HOURS_PER_DAY = 8, FULL_WEEK = 5, MIN=0.25, MAXLINE=4;
+const PIR_ORDER = ["DM","PM","DS","RiskC","BA","ENG (TS)"];
+const ROLES = ["Project Manager","Delivery Manager","Data Scientist","Data Analyst",
+  "Risk Consultant","Risk&AI Manager","Business Analyst","Software Engineer",
+  "Technical Lead","Solution Architect","Engineering Manager"];
+const ROLE_TO_PIR = {
+  "project manager":"PM","delivery manager":"DM","data scientist":"DS","data analyst":"DS",
+  "risk consultant":"RiskC","risk&ai manager":"RiskC","risk & ai manager":"RiskC",
+  "business analyst":"BA","software engineer":"ENG (TS)","technical lead":"ENG (TS)",
+  "solution architect":"ENG (TS)","engineering manager":"ENG (TS)"
+};
+
+let weeks = [];       // ["14/09", ...]
+const bpe = {};       // code -> number
+
+function pad(n){ return String(n).padStart(2,"0"); }
+function fmtWeek(d){ return pad(d.getDate())+"/"+pad(d.getMonth()+1); }
+function buildWeeks(start, end){
+  const out=[]; if(!start||!end) return out;
+  let cur=new Date(start);
+  const e=new Date(end);
+  while(cur<=e){ out.push(fmtWeek(cur)); cur.setDate(cur.getDate()+7); }
+  return out;
+}
+function fmtNum(n){ if(n===null||isNaN(n)) return ""; return (n%1===0)? String(n): (Math.round(n*100)/100).toString(); }
+
+function makeRoleSelect(val){
+  const s=document.createElement("select");
+  const blank=document.createElement("option"); blank.value=""; blank.textContent="—"; s.appendChild(blank);
+  ROLES.forEach(r=>{ const o=document.createElement("option"); o.value=r; o.textContent=r; if(r===val)o.selected=true; s.appendChild(o); });
+  s.addEventListener("change", recompute);
+  return s;
+}
+function textCell(ph){ const i=document.createElement("input"); i.placeholder=ph||""; i.addEventListener("input",recompute); return i; }
+function weekInput(){ const i=document.createElement("input"); i.type="number"; i.step="0.25"; i.min="0"; i.max="4";
+  i.addEventListener("input",recompute); return i; }
+
+function addRow(data){
+  data=data||{};
+  const tr=document.createElement("tr");
+  // meta cells
+  const nameTd=document.createElement("td"); nameTd.className="meta";
+  const nameI=textCell("Name"); nameI.value=data.name||""; nameTd.appendChild(nameI); tr.appendChild(nameTd);
+  // calc: days, hours, fte
+  ["days","hours","fte"].forEach(k=>{ const td=document.createElement("td"); td.className="calc "+k; td.textContent="0"; tr.appendChild(td); });
+  const roleTd=document.createElement("td"); roleTd.className="meta"; roleTd.appendChild(makeRoleSelect(data.role)); tr.appendChild(roleTd);
+  const areaTd=document.createElement("td"); areaTd.className="meta"; const areaI=textCell("Area"); areaI.value=data.area||""; areaTd.appendChild(areaI); tr.appendChild(areaTd);
+  const senTd=document.createElement("td"); senTd.className="meta"; const senI=textCell("Seniority"); senI.value=data.sen||""; senTd.appendChild(senI); tr.appendChild(senTd);
+  // week cells
+  weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk"; const wi=weekInput();
+    if(data.weekly&&data.weekly[idx]!=null&&data.weekly[idx]!=="") wi.value=data.weekly[idx]; td.appendChild(wi); tr.appendChild(td); });
+  // remove btn
+  const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.className="btn btn-danger"; rm.textContent="✕";
+  rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{ tr.remove(); recompute(); }); rmTd.appendChild(rm); tr.appendChild(rmTd);
+  document.getElementById("gridBody").appendChild(tr);
+}
+
+function renderHead(){
+  const head=document.getElementById("gridHead");
+  head.innerHTML="";
+  const cols=["Name Suggestion","Days","Hours","FTE","ROLE","AREA","SENIORITY",...weeks,""];
+  cols.forEach(c=>{ const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
+}
+
+function rebuildWeeks(){
+  const s=document.getElementById("startDate").value, e=document.getElementById("endDate").value;
+  const existing=collect(); // preserve current rows
+  weeks=buildWeeks(s,e);
+  renderHead();
+  document.getElementById("gridBody").innerHTML="";
+  existing.forEach(r=>addRow(r));
+  if(existing.length===0) addRow();
+  recompute();
+}
+
+function collect(){
+  const rows=[];
+  document.querySelectorAll("#gridBody tr").forEach(tr=>{
+    const inputs=tr.querySelectorAll("td.meta input, td.meta select");
+    const name=inputs[0]?inputs[0].value:"";
+    const role=tr.querySelector("td.meta select")?tr.querySelector("td.meta select").value:"";
+    const metaInputs=tr.querySelectorAll("td.meta input");
+    const area=metaInputs[1]?metaInputs[1].value:"";
+    const sen=metaInputs[2]?metaInputs[2].value:"";
+    const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value));
+    rows.push({name,role,area,sen,weekly});
+  });
+  return rows;
+}
+
+function recompute(){
+  const rows=collect();
+  const warnings=[];
+  let gridDays=0, gridHours=0;
+  const pirDays={}; PIR_ORDER.forEach(c=>pirDays[c]=0);
+
+  document.querySelectorAll("#gridBody tr").forEach((tr,ri)=>{
+    const r=rows[ri];
+    const vals=r.weekly.map(v=>v===""?null:parseFloat(v)).filter(v=>v!=null&&!isNaN(v));
+    vals.forEach(v=>{
+      if(v>MAXLINE) warnings.push(`Row ${ri+1} (${r.role||"?"}): ${fmtNum(v)} exceeds max ${MAXLINE}/line.`);
+      if(v!==0 && Math.round(v/MIN)!==v/MIN) warnings.push(`Row ${ri+1} (${r.role||"?"}): ${fmtNum(v)} not a multiple of ${MIN}.`);
+    });
+    const days=vals.reduce((a,b)=>a+b,0);
+    const hours=days*HOURS_PER_DAY;
+    const fte=vals.length? (days/vals.length/FULL_WEEK):null;
+    tr.querySelector(".days").textContent=fmtNum(days);
+    tr.querySelector(".hours").textContent=hours.toFixed(2);
+    tr.querySelector(".fte").textContent=fte===null?"#DIV/0!":fte.toFixed(2);
+    gridDays+=days; gridHours+=hours;
+    const code=ROLE_TO_PIR[(r.role||"").trim().toLowerCase()];
+    if(code) pirDays[code]+=days;
+    else if((r.role||"").trim()) warnings.push(`Role "${r.role}" has no PIR mapping.`);
+  });
+
+  // grid total row
+  const gt=document.getElementById("gridTotal"); gt.innerHTML="";
+  const tcells=["TOTAL",fmtNum(gridDays),gridHours.toFixed(0),"","","","",...weeks.map(()=>""),""];
+  tcells.forEach((c,i)=>{ const td=document.createElement("td"); td.className="calc"; td.textContent=c; gt.appendChild(td); });
+
+  // PIR
+  const pb=document.getElementById("pirBody"); pb.innerHTML="";
+  let pirD=0,pirH=0;
+  PIR_ORDER.forEach(code=>{
+    const d=pirDays[code], h=d*HOURS_PER_DAY; pirD+=d; pirH+=h;
+    const b=bpe[code]; let comment="";
+    if(b!=null&&!isNaN(b)){ if(h<b)comment="hours missing"; else if(h>b)comment="exceed"; }
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td>`;
+    const bTd=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px";
+    if(b!=null) bi.value=b; bi.addEventListener("input",()=>{ const v=parseFloat(bi.value); if(bi.value==="")delete bpe[code]; else bpe[code]=v; recompute(); });
+    bTd.appendChild(bi); tr.appendChild(bTd);
+    const cTd=document.createElement("td"); cTd.textContent=comment; if(comment)cTd.style.color= comment==="exceed"?"#c0392b":"#b8860b"; tr.appendChild(cTd);
+    pb.appendChild(tr);
+  });
+  const pt=document.getElementById("pirTotal"); pt.innerHTML=`<td>Total</td><td>${fmtNum(pirD)}</td><td>${fmtNum(pirH)}</td><td></td><td></td>`;
+
+  const match = Math.round(gridHours*1e6)===Math.round(pirH*1e6);
+  const pill=document.getElementById("matchPill");
+  pill.textContent="Total Values Match? "+(match?"TRUE":"FALSE");
+  pill.className="pill "+(match?"ok":"bad");
+
+  document.getElementById("warnings").textContent = warnings.length? "⚠️ "+[...new Set(warnings)].join("\n⚠️ "):"";
+}
+
+function csvEscape(v){ v=String(v==null?"":v); return /[",\n]/.test(v)? '"'+v.replace(/"/g,'""')+'"': v; }
+function toCSV(){
+  const rows=collect();
+  const proj=document.getElementById("projName").value;
+  const startV=document.getElementById("startDate").value, endV=document.getElementById("endDate").value;
+  const d2 = s=> s? s.split("-").reverse().join("/"):"";
+  const year = startV? startV.slice(0,4):"";
+  const cost=document.getElementById("costId").value;
+  const L=[];
+  L.push([proj,"","","(Mandatory fields)","Project Start date",d2(startV)]);
+  L.push(["","","","","Project End date",d2(endV)]);
+  L.push(["Cost Tracker ID",cost,"","","Hours per day",HOURS_PER_DAY]);
+  L.push([]);
+  L.push(["","","","","","","","Weekly Resourcing Need"]);
+  L.push(["","","","(Mandatory fields)","","","",year]);
+  L.push(["Name Suggestion","Days per role","Hours per role","FTE Average","ROLE","PREFERRED ALLOCATION AREA","PREFERRED SENIORITY",...weeks]);
+  let gd=0,gh=0; const pirDays={}; PIR_ORDER.forEach(c=>pirDays[c]=0);
+  rows.forEach(r=>{
+    const vals=r.weekly.map(v=>v===""?null:parseFloat(v));
+    const active=vals.filter(v=>v!=null&&!isNaN(v));
+    const days=active.reduce((a,b)=>a+b,0), hours=days*HOURS_PER_DAY;
+    const fte=active.length?(days/active.length/FULL_WEEK):null;
+    gd+=days; gh+=hours;
+    const code=ROLE_TO_PIR[(r.role||"").trim().toLowerCase()]; if(code)pirDays[code]+=days;
+    L.push([r.name,fmtNum(days),hours.toFixed(2),fte===null?"#DIV/0!":fte.toFixed(2),r.role,r.area,r.sen,
+      ...vals.map(v=>v==null||isNaN(v)?"":fmtNum(v))]);
+  });
+  L.push(["TOTAL",fmtNum(gd),fmtNum(gh)]);
+  L.push([]); L.push([]);
+  L.push(["","","(Use below values in the PIR)","(Mandatory field)"]);
+  L.push(["Time Loging","Days","Hours","BPE Hours per role","AI Comment"]);
+  let pd=0,ph=0;
+  PIR_ORDER.forEach(code=>{ const d=pirDays[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
+    const b=bpe[code]; let c=""; if(b!=null&&!isNaN(b)){ if(h<b)c="hours missing"; else if(h>b)c="exceed"; }
+    L.push([code,fmtNum(d),fmtNum(h),b==null?"":fmtNum(b),c]); });
+  L.push(["Total",fmtNum(pd),fmtNum(ph)]);
+  L.push(["Total Values Match?", Math.round(gh*1e6)===Math.round(ph*1e6)?"TRUE":"FALSE"]);
+  return L.map(row=>row.map(csvEscape).join(",")).join("\n");
+}
+
+function download(){
+  const csv=toCSV();
+  const name=(document.getElementById("projName").value||"plan").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  const blob=new Blob([csv],{type:"text/csv"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name+"-plan.csv"; a.click();
+}
+
+function loadTwint(){
+  document.getElementById("projName").value="twint";
+  document.getElementById("startDate").value="2026-09-14";
+  document.getElementById("endDate").value="2026-12-31";
+  document.getElementById("costId").value="12-346-7";
+  rebuildWeeks();
+  // truncate weeks at 14/12 for the 400h-cap example by using end 14/12
+  document.getElementById("endDate").value="2026-12-14";
+  rebuildWeeks();
+  document.getElementById("gridBody").innerHTML="";
+  addRow({name:"Carlos Lourenco",role:"Project Manager",weekly:Array(weeks.length).fill("0.25")});
+  addRow({name:"Miguel Pereira",role:"Data Scientist",weekly:["2.5","","3.5","2.5","3.5","3.5","3.5","3.5","3.5","3.5","3.5","2.5","2.5","3.5"]});
+  const clara=Array(weeks.length).fill(""); clara[1]="3.5";
+  addRow({name:"Clara Pereira",role:"Data Scientist",weekly:clara});
+  recompute();
+}
+
+document.getElementById("startDate").addEventListener("change",rebuildWeeks);
+document.getElementById("endDate").addEventListener("change",rebuildWeeks);
+document.getElementById("addRow").addEventListener("click",()=>{ addRow(); recompute(); });
+document.getElementById("download").addEventListener("click",download);
+document.getElementById("loadTwint").addEventListener("click",loadTwint);
+
+// initial default dates: today + EOY
+(function(){
+  const t=new Date(); const eoy=new Date(t.getFullYear(),11,31);
+  document.getElementById("startDate").value=t.toISOString().slice(0,10);
+  document.getElementById("endDate").value=eoy.toISOString().slice(0,10);
+  rebuildWeeks();
+})();
+</script>
+</body>
+</html>

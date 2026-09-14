@@ -1,0 +1,23 @@
+twint,,,(Mandatory fields),Project Start date,14/09/2026
+,,,,Project End date,31/12/2026
+Cost Tracker ID,12-346-7,,,Hours per day,8
+
+,,,,,,,Weekly Resourcing Need
+,,,(Mandatory fields),,,,2026
+Name Suggestion,Days per role,Hours per role,FTE Average,ROLE,PREFERRED ALLOCATION AREA,PREFERRED SENIORITY,14/09,21/09,28/09,05/10,12/10,19/10,26/10,02/11,09/11,16/11,23/11,30/11,07/12,14/12,21/12,28/12
+Carlos Lourenco,3.5,28.00,0.05,Project Manager,,,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,,
+Miguel Pereira,41.5,332.00,0.64,Data Scientist,,,2.5,,3.5,2.5,3.5,3.5,3.5,3.5,3.5,3.5,3.5,2.5,2.5,3.5,,
+Clara Pereira,3.5,28.00,0.70,Data Scientist,,,,3.5,,,,,,,,,,,,,,
+TOTAL,48.5,388
+
+
+,,(Use below values in the PIR),(Mandatory field)
+Time Loging,Days,Hours,BPE Hours per role,AI Comment
+DM,0,0,,
+PM,3.5,28,,
+DS,45,360,,
+RiskC,0,0,,
+BA,0,0,,
+ENG (TS),0,0,,
+Total,48.5,388
+Total Values Match?,TRUE

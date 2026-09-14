@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Allocation Auto-Planner</title>
+<style>
+  :root { --line:#d9dee5; --grey:#eef1f4; --ok:#1f8a4c; --bad:#c0392b; --accent:#2a5bd7; --warnc:#b8860b; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; margin:0; padding:24px; color:#1c2530; background:#f7f9fb; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:#5a6675; font-size:13px; margin-bottom:18px; }
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 18px; padding:14px 16px; background:#fff; }
+  legend { font-weight:600; font-size:13px; padding:0 6px; color:#3a4656; }
+  label { display:block; font-size:12px; color:#5a6675; margin-bottom:3px; }
+  input, select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--accent); border-color:var(--accent); }
+  .hdr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th, td { border:1px solid var(--line); padding:4px 6px; text-align:center; white-space:nowrap; }
+  th { background:var(--grey); font-weight:600; }
+  td.calc { background:var(--grey); color:#3a4656; font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+  td input, td select { border:none; width:100%; text-align:center; padding:4px; background:transparent; }
+  td.wk input { width:52px; }
+  td.wk.hol { background:#fff4e0; }  td.wk.pto { background:#fde8ec; }
+  td.meta input, td.meta select { min-width:120px; text-align:left; }
+  .btn { font:inherit; font-weight:600; padding:8px 14px; border:none; border-radius:6px; cursor:pointer; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-ghost { background:#fff; border:1px solid var(--line); color:#3a4656; }
+  .btn-danger { background:#fff; border:1px solid var(--line); color:var(--bad); }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0; align-items:center; }
+  .pill { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:600; }
+  .pill.ok { background:#e5f5ec; color:var(--ok); } .pill.bad { background:#fbe9e7; color:var(--bad); }
+  .warn { color:var(--bad); font-size:12px; margin-top:8px; white-space:pre-line; }
+  .note { color:var(--warnc); font-size:12px; margin-top:8px; white-space:pre-line; }
+  .pir th, .pir td { text-align:left; }
+  .muted { color:#8a95a3; }
+  .plan-row { display:grid; grid-template-columns:1.3fr 1.3fr 0.8fr 0.9fr 1.4fr 1.2fr auto; gap:8px; align-items:end; margin-bottom:8px; }
+  .plan-row input, .plan-row select { width:100%; }
+  .legendbar { font-size:11px; color:#5a6675; margin-top:6px; }
+  .sw { display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:middle; margin:0 3px 0 10px; border:1px solid var(--line); }
+</style>
+</head>
+<body>
+  <h1>Allocation Auto-Planner</h1>
+  <div class="sub">Declare total hours, roles, capacity, city and PTO. The planner spreads the allocation across the timeline until hours run out, reducing weeks for Portugal holidays &amp; PTO, and auto-covering PTO with a same-role teammate.</div>
+
+  <fieldset>
+    <legend>Project &amp; budget</legend>
+    <div class="hdr-grid">
+      <div><label>Project name</label><input id="projName" placeholder="twint"></div>
+      <div><label>Start date</label><input id="startDate" type="date"></div>
+      <div><label>End date</label><input id="endDate" type="date"></div>
+      <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
+      <div><label>Total hours to allocate (cap)</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Resources to plan</legend>
+    <div id="planRows"></div>
+    <div class="toolbar">
+      <button class="btn btn-ghost" id="addPlan">+ Add resource</button>
+      <button class="btn btn-primary" id="generate">⚙ Generate allocation</button>
+    </div>
+    <div class="muted" style="font-size:12px">
+      Capacity = max days/week (≤4). PTO = comma-separated ranges like <code>18/09/2026-25/09/2026</code>.
+      "Covers for" = pick a same-role teammate whose PTO weeks this person fills.
+      PM is secondary: it only allocates 0.25/week while a hands-on role is working.
+    </div>
+    <div class="note" id="planNote"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Generated grid</legend>
+    <div class="scroll">
+      <table id="grid">
+        <thead><tr id="gridHead"></tr></thead>
+        <tbody id="gridBody"></tbody>
+        <tfoot><tr id="gridTotal"></tr></tfoot>
+      </table>
+    </div>
+    <div class="legendbar"><span class="sw" style="background:#fff4e0"></span>holiday-reduced week
+      <span class="sw" style="background:#fde8ec"></span>PTO-reduced week</div>
+    <div class="warn" id="warnings"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>PIR — Time Logging &amp; BPE</legend>
+    <div class="scroll">
+      <table class="pir">
+        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours (input)</th><th>AI Comment</th></tr></thead>
+        <tbody id="pirBody"></tbody>
+        <tfoot><tr id="pirTotal"></tr></tfoot>
+      </table>
+    </div>
+    <div class="toolbar"><span id="matchPill" class="pill ok">Total Values Match? —</span>
+      <span id="capPill" class="pill ok">Allocated — / — h</span></div>
+  </fieldset>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
+    <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
+  </div>
+
+<script>
+const HOURS_PER_DAY=8, FULL_WEEK=5, MIN=0.25, MAXLINE=4, PM_RATE=0.25;
+const PIR_ORDER=["DM","PM","DS","RiskC","BA","ENG (TS)"];
+const ROLES=["Project Manager","Delivery Manager","Data Scientist","Data Analyst",
+ "Risk Consultant","Risk&AI Manager","Business Analyst","Software Engineer",
+ "Technical Lead","Solution Architect","Engineering Manager"];
+const ROLE_TO_PIR={"project manager":"PM","delivery manager":"DM","data scientist":"DS",
+ "data analyst":"DS","risk consultant":"RiskC","risk&ai manager":"RiskC","risk & ai manager":"RiskC",
+ "business analyst":"BA","software engineer":"ENG (TS)","technical lead":"ENG (TS)",
+ "solution architect":"ENG (TS)","engineering manager":"ENG (TS)"};
+const CITIES=["Lisbon","Porto","Coimbra"];
+const MUNICIPAL={ "Lisbon":"13/06", "Porto":"24/06", "Coimbra":"04/07" }; // day/month
+
+let weeks=[];        // [{mon:Date, label:"dd/mm"}]
+let gridRows=[];     // computed rows to render: {name,role,city,weekly:[..], holWeeks:Set, ptoWeeks:Set}
+const bpe={};
+
+// ---------- date helpers ----------
+function pad(n){return String(n).padStart(2,"0");}
+function lbl(d){return pad(d.getDate())+"/"+pad(d.getMonth()+1);}
+function parseISO(s){ if(!s) return null; const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+function parseDMY(s){ const p=s.trim().split("/"); if(p.length!==3) return null;
+  let [d,m,y]=p.map(Number); if(y<100)y+=2000; return new Date(y,m-1,d); }
+function sameDay(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();}
+function mondayOf(d){ const x=new Date(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); return x; }
+
+// ---------- Easter (Anonymous Gregorian algorithm) ----------
+function easter(year){
+  const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,
+    f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,
+    i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mon=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
+  return new Date(year,mon-1,day);
+}
+// ---------- PT national holidays for a year (Date[]) ----------
+function nationalHolidays(year){
+  const fixed=[[1,1],[4,25],[5,1],[6,10],[8,15],[10,5],[11,1],[12,1],[12,8],[12,25]];
+  const list=fixed.map(([m,d])=>new Date(year,m-1,d));
+  const eas=easter(year);
+  const goodFri=new Date(eas); goodFri.setDate(eas.getDate()-2);
+  const corpus=new Date(eas);  corpus.setDate(eas.getDate()+60); // Corpus Christi = Easter+60
+  list.push(goodFri, new Date(eas), corpus);
+  return list;
+}
+function municipalHoliday(city, year){
+  const dm=MUNICIPAL[city]; if(!dm) return null;
+  const [d,m]=dm.split("/").map(Number); return new Date(year,m-1,d);
+}
+// holidays affecting a given city across the plan years
+function holidaysForCity(city){
+  const yrs=new Set(weeks.map(w=>w.mon.getFullYear()));
+  // also include the year of week's Friday (spillover) — same year in practice
+  const out=[];
+  yrs.forEach(y=>{ nationalHolidays(y).forEach(h=>out.push(h)); const mh=municipalHoliday(city,y); if(mh)out.push(mh); });
+  return out;
+}
+// count weekday holidays (Mon–Fri) that fall inside a given week for a city
+function holidayDaysInWeek(mon, cityHols){
+  let c=0;
+  for(let i=0;i<5;i++){ const day=new Date(mon); day.setDate(mon.getDate()+i);
+    if(cityHols.some(h=>sameDay(h,day))) c++; }
+  return c;
+}
+// count weekday PTO days inside a week from list of {s,e} ranges
+function ptoDaysInWeek(mon, ranges){
+  let c=0;
+  for(let i=0;i<5;i++){ const day=new Date(mon); day.setDate(mon.getDate()+i);
+    if(ranges.some(r=>day>=r.s&&day<=r.e)) c++; }
+  return c;
+}
+function parsePTO(str){
+  if(!str) return [];
+  return str.split(",").map(x=>x.trim()).filter(Boolean).map(x=>{
+    const [a,b]=x.split("-").map(s=>s.trim());
+    const s=parseDMY(a), e=parseDMY(b||a);
+    return (s&&e)?{s,e}:null;
+  }).filter(Boolean);
+}
+
+// ---------- weeks ----------
+function buildWeeks(){
+  const s=parseISO(document.getElementById("startDate").value);
+  const e=parseISO(document.getElementById("endDate").value);
+  weeks=[]; if(!s||!e) return;
+  let cur=mondayOf(s); // align to Monday for holiday math; label from actual start's Monday
+  // Use actual start week (start may not be Monday) — first label is start's own week Monday
+  cur=mondayOf(s);
+  const endM=mondayOf(e);
+  while(cur<=endM){ weeks.push({mon:new Date(cur), label:lbl(cur)}); cur.setDate(cur.getDate()+7); }
+}
+
+// ---------- Plan panel ----------
+function addPlanRow(d){
+  d=d||{};
+  const wrap=document.createElement("div"); wrap.className="plan-row";
+  wrap.innerHTML=`
+    <div><label>Name</label><input class="p-name" value="${d.name||""}"></div>
+    <div><label>Role</label><select class="p-role">${["",...ROLES].map(r=>`<option ${r===d.role?"selected":""}>${r}</option>`).join("")}</select></div>
+    <div><label>Capacity (d/wk)</label><input class="p-cap" type="number" step="0.25" min="0.25" max="4" value="${d.cap!=null?d.cap:""}"></div>
+    <div><label>City</label><select class="p-city">${CITIES.map(c=>`<option ${c===d.city?"selected":""}>${c}</option>`).join("")}</select></div>
+    <div><label>PTO ranges</label><input class="p-pto" placeholder="18/09/2026-25/09/2026" value="${d.pto||""}"></div>
+    <div><label>Covers for</label><input class="p-cover" placeholder="name" value="${d.cover||""}"></div>
+    <div><button class="btn btn-danger p-del">✕</button></div>`;
+  wrap.querySelector(".p-del").addEventListener("click",()=>wrap.remove());
+  document.getElementById("planRows").appendChild(wrap);
+}
+function readPlan(){
+  const rows=[];
+  document.querySelectorAll("#planRows .plan-row").forEach(w=>{
+    rows.push({
+      name:w.querySelector(".p-name").value.trim(),
+      role:w.querySelector(".p-role").value.trim(),
+      cap:parseFloat(w.querySelector(".p-cap").value),
+      city:w.querySelector(".p-city").value,
+      pto:parsePTO(w.querySelector(".p-pto").value),
+      cover:w.querySelector(".p-cover").value.trim()
+    });
+  });
+  return rows;
+}
+
+// ---------- core: spread allocation ----------
+function generate(){
+  buildWeeks();
+  const note=[]; const plan=readPlan();
+  const cap=parseFloat(document.getElementById("totalHours").value);
+  if(!weeks.length){ document.getElementById("planNote").textContent="Set start and end dates first."; return; }
+  if(isNaN(cap)||cap<=0){ document.getElementById("planNote").textContent="Set a total hours cap."; return; }
+
+  const hands=plan.filter(p=>p.role && ROLE_TO_PIR[p.role.toLowerCase()]!=="PM" && p.cap>0);
+  const pms=plan.filter(p=>ROLE_TO_PIR[(p.role||"").toLowerCase()]==="PM");
+  if(!hands.length){ document.getElementById("planNote").textContent="Add at least one hands-on (non-PM) resource with capacity."; return; }
+
+  // Precompute per-resource weekly *capacity* after holiday+PTO reductions.
+  function weeklyCapacity(res){
+    const cityHols=holidaysForCity(res.city);
+    return weeks.map(w=>{
+      const hol=holidayDaysInWeek(w.mon,cityHols);
+      const pto=ptoDaysInWeek(w.mon,res.pto);
+      const lost=hol+pto;
+      let capDays=res.cap-lost;
+      const fullyOff = pto>=5 || (res.cap-lost)<=0 && pto>0;
+      if(pto>=5) return {days:0,hol,pto};
+      if(capDays<=0){ // consumed entirely by holidays/pto
+        return {days:0,hol,pto};
+      }
+      if(capDays<MIN) capDays=MIN;           // working week floored at 0.25
+      // round to 0.25 grid
+      capDays=Math.round(capDays/MIN)*MIN;
+      return {days:capDays,hol,pto};
+    });
+  }
+  // auto-cover: coverer picks up covered person's planned days during covered PTO weeks
+  const capByName={}; hands.forEach(h=>capByName[h.name]=weeklyCapacity(h));
+
+  // Determine covered weeks per coverer
+  hands.forEach(h=>{
+    if(!h.cover) return;
+    const target=hands.find(x=>x.name.toLowerCase()===h.cover.toLowerCase());
+    if(!target){ note.push(`"${h.name}" covers for "${h.cover}" but no such resource — ignored.`); return; }
+    if((target.role||"").toLowerCase()!==(h.role||"").toLowerCase()){
+      note.push(`"${h.name}" and "${h.cover}" have different roles — cover ignored (same-role only).`); return; }
+  });
+
+  // Build weekly allocation, consuming shared budget until cap.
+  let remaining=cap;
+  const alloc={}; hands.forEach(h=>alloc[h.name]=weeks.map(()=>0));
+  const pmAlloc={}; pms.forEach(p=>pmAlloc[p.name]=weeks.map(()=>0));
+
+  for(let wi=0; wi<weeks.length && remaining>1e-9; wi++){
+    // who is working this week (hands-on with capacity>0), applying cover
+    // base capacity
+    const workThisWeek=[];
+    hands.forEach(h=>{
+      // A resource with a valid same-role "covers for" target is a COVER resource:
+      // it is idle every week EXCEPT weeks the target is fully off (PTO), where it
+      // takes the target's planned days (capped at its own max). A resource with no
+      // (or invalid) cover works its own capacity normally.
+      const t = h.cover ? hands.find(x=>x.name.toLowerCase()===h.cover.toLowerCase()) : null;
+      const validCover = t && (t.role||"").toLowerCase()===(h.role||"").toLowerCase();
+      let dcap;
+      if(validCover){
+        const tOff = capByName[t.name][wi].days===0 && capByName[t.name][wi].pto>0;
+        if(!tOff){ return; }                       // cover resource idle when target is working
+        dcap=Math.min(t.cap, h.cap);
+        if(dcap<MIN)dcap=MIN;
+        dcap=Math.round(dcap/MIN)*MIN;
+      } else {
+        dcap=capByName[h.name][wi].days;           // normal worker
+      }
+      if(dcap>0) workThisWeek.push({h,dcap});
+    });
+    if(!workThisWeek.length) continue; // nobody working -> PM also idle, skip
+
+    // hours if everyone works full capacity this week (hands + PMs at 0.25 each)
+    let handHours=workThisWeek.reduce((a,x)=>a+x.dcap*HOURS_PER_DAY,0);
+    let pmHours=pms.length*PM_RATE*HOURS_PER_DAY;
+    let weekHours=handHours+pmHours;
+
+    if(weekHours<=remaining+1e-9){
+      // full week fits
+      workThisWeek.forEach(x=>{ alloc[x.h.name][wi]=x.dcap; });
+      pms.forEach(p=>{ pmAlloc[p.name][wi]=PM_RATE; });
+      remaining-=weekHours;
+    } else {
+      // final partial week — scale hands to hit cap exactly (PMs still 0.25 if any room)
+      // reserve PM hours first (they're tiny, secondary but present while hands work)
+      let budget=remaining;
+      let pmCost=pms.length*PM_RATE*HOURS_PER_DAY;
+      if(pmCost<=budget){ pms.forEach(p=>pmAlloc[p.name][wi]=PM_RATE); budget-=pmCost; }
+      // distribute remaining budget across hands proportional to their capacity
+      const totalCap=workThisWeek.reduce((a,x)=>a+x.dcap,0);
+      workThisWeek.forEach(x=>{
+        const share=budget*(x.dcap/totalCap);        // hours
+        let days=share/HOURS_PER_DAY;                 // exact fraction to hit cap
+        alloc[x.h.name][wi]=Math.round(days*10000)/10000;
+      });
+      remaining=0;
+    }
+  }
+
+  // build gridRows
+  gridRows=[];
+  hands.forEach(h=>{
+    const cityHols=holidaysForCity(h.city);
+    const holW=new Set(), ptoW=new Set();
+    weeks.forEach((w,wi)=>{ if(holidayDaysInWeek(w.mon,cityHols)>0 && alloc[h.name][wi]>0) holW.add(wi);
+                            if(ptoDaysInWeek(w.mon,h.pto)>0) ptoW.add(wi); });
+    gridRows.push({name:h.name,role:h.role,city:h.city,weekly:alloc[h.name],holWeeks:holW,ptoWeeks:ptoW});
+  });
+  pms.forEach(p=>{
+    gridRows.push({name:p.name,role:p.role,city:p.city,weekly:pmAlloc[p.name],holWeeks:new Set(),ptoWeeks:new Set()});
+  });
+
+  const allocated=cap-remaining;
+  note.push(`Allocated ${fmtNum(Math.round(allocated*100)/100)}h of ${fmtNum(cap)}h cap across ${weeks.length} week(s).`);
+  document.getElementById("planNote").textContent=note.join("\n");
+  render();
+}
+
+function fmtNum(n){ if(n===null||n===undefined||isNaN(n)) return ""; const r=Math.round(n*100)/100; return r%1===0?String(r):r.toString(); }
+
+function render(){
+  // head
+  const head=document.getElementById("gridHead"); head.innerHTML="";
+  ["Name Suggestion","Days","Hours","FTE","ROLE","AREA (city)","SENIORITY",...weeks.map(w=>w.label)]
+    .forEach(c=>{const th=document.createElement("th"); th.textContent=c; head.appendChild(th);});
+  // body
+  const body=document.getElementById("gridBody"); body.innerHTML="";
+  let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0); const warns=[];
+  gridRows.forEach((r,ri)=>{
+    const active=r.weekly.filter(v=>v>0);
+    const days=r.weekly.reduce((a,b)=>a+b,0), hours=days*HOURS_PER_DAY;
+    const fte=active.length?(days/active.length/FULL_WEEK):null;
+    gd+=days; gh+=hours;
+    const code=ROLE_TO_PIR[(r.role||"").toLowerCase()]; if(code)pir[code]+=days;
+    active.forEach(v=>{ if(v>MAXLINE)warns.push(`${r.name}: week ${fmtNum(v)} exceeds ${MAXLINE}/line.`);});
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td class="meta" style="text-align:left">${r.name}</td>
+      <td class="calc">${fmtNum(days)}</td><td class="calc">${hours.toFixed(2)}</td>
+      <td class="calc">${fte===null?"#DIV/0!":fte.toFixed(2)}</td>
+      <td class="meta" style="text-align:left">${r.role}</td>
+      <td class="meta" style="text-align:left">${r.city||""}</td><td class="meta"></td>`;
+    r.weekly.forEach((v,wi)=>{ const td=document.createElement("td"); td.className="wk"+(r.holWeeks.has(wi)?" hol":"")+(r.ptoWeeks.has(wi)?" pto":"");
+      td.textContent=v>0?fmtNum(v):""; tr.appendChild(td);});
+    body.appendChild(tr);
+  });
+  // total
+  const gt=document.getElementById("gridTotal"); gt.innerHTML="";
+  ["TOTAL",fmtNum(gd),fmtNum(gh),"","","","",...weeks.map(()=>"")].forEach(c=>{const td=document.createElement("td");td.className="calc";td.textContent=c;gt.appendChild(td);});
+  // PIR
+  const pb=document.getElementById("pirBody"); pb.innerHTML=""; let pd=0,ph=0;
+  PIR_ORDER.forEach(code=>{ const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
+    const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){ if(h<b)cm="hours missing"; else if(h>b)cm="exceed"; }
+    const tr=document.createElement("tr"); tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td>`;
+    const bt=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px";
+    if(b!=null)bi.value=b; bi.addEventListener("input",()=>{const v=parseFloat(bi.value); if(bi.value==="")delete bpe[code]; else bpe[code]=v; render();});
+    bt.appendChild(bi); tr.appendChild(bt);
+    const ct=document.createElement("td"); ct.textContent=cm; if(cm)ct.style.color=cm==="exceed"?"#c0392b":"#b8860b"; tr.appendChild(ct);
+    pb.appendChild(tr);
+  });
+  document.getElementById("pirTotal").innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td><td></td>`;
+  const match=Math.round(gh*1e6)===Math.round(ph*1e6);
+  const mp=document.getElementById("matchPill"); mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad");
+  const cp=document.getElementById("capPill"); const capv=parseFloat(document.getElementById("totalHours").value)||0;
+  cp.textContent=`Allocated ${fmtNum(Math.round(gh*100)/100)} / ${fmtNum(capv)} h`;
+  cp.className="pill "+(gh<=capv+1e-6?"ok":"bad");
+  document.getElementById("warnings").textContent=warns.length?"⚠️ "+[...new Set(warns)].join("\n⚠️ "):"";
+}
+
+// ---------- CSV ----------
+function csvEscape(v){v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function toCSV(){
+  const proj=document.getElementById("projName").value;
+  const sV=document.getElementById("startDate").value, eV=document.getElementById("endDate").value;
+  const d2=s=>s?s.split("-").reverse().join("/"):""; const year=sV?sV.slice(0,4):"";
+  const L=[];
+  L.push([proj,"","","(Mandatory fields)","Project Start date",d2(sV)]);
+  L.push(["","","","","Project End date",d2(eV)]);
+  L.push(["Cost Tracker ID",document.getElementById("costId").value,"","","Hours per day",HOURS_PER_DAY]);
+  L.push([]); L.push(["","","","","","","","Weekly Resourcing Need"]);
+  L.push(["","","","(Mandatory fields)","","","",year]);
+  L.push(["Name Suggestion","Days per role","Hours per role","FTE Average","ROLE","PREFERRED ALLOCATION AREA","PREFERRED SENIORITY",...weeks.map(w=>w.label)]);
+  let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0);
+  gridRows.forEach(r=>{ const active=r.weekly.filter(v=>v>0); const days=r.weekly.reduce((a,b)=>a+b,0),hours=days*HOURS_PER_DAY;
+    const fte=active.length?(days/active.length/FULL_WEEK):null; gd+=days; gh+=hours;
+    const code=ROLE_TO_PIR[(r.role||"").toLowerCase()]; if(code)pir[code]+=days;
+    L.push([r.name,fmtNum(days),hours.toFixed(2),fte===null?"#DIV/0!":fte.toFixed(2),r.role,r.city||"","",
+      ...r.weekly.map(v=>v>0?fmtNum(v):"")]);
+  });
+  L.push(["TOTAL",fmtNum(gd),fmtNum(gh)]); L.push([]); L.push([]);
+  L.push(["","","(Use below values in the PIR)","(Mandatory field)"]);
+  L.push(["Time Loging","Days","Hours","BPE Hours per role","AI Comment"]);
+  let pd=0,ph=0;
+  PIR_ORDER.forEach(code=>{const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
+    const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){if(h<b)cm="hours missing";else if(h>b)cm="exceed";}
+    L.push([code,fmtNum(d),fmtNum(h),b==null?"":fmtNum(b),cm]);});
+  L.push(["Total",fmtNum(pd),fmtNum(ph)]);
+  L.push(["Total Values Match?",Math.round(gh*1e6)===Math.round(ph*1e6)?"TRUE":"FALSE"]);
+  return L.map(r=>r.map(csvEscape).join(",")).join("\n");
+}
+function download(){ const csv=toCSV();
+  const name=(document.getElementById("projName").value||"plan").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  const b=new Blob([csv],{type:"text/csv"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=name+"-plan.csv"; a.click();
+}
+
+function loadTwint(){
+  document.getElementById("projName").value="twint";
+  document.getElementById("startDate").value="2026-09-14";
+  document.getElementById("endDate").value="2026-12-31";
+  document.getElementById("costId").value="12-346-7";
+  document.getElementById("totalHours").value="400";
+  document.getElementById("planRows").innerHTML="";
+  addPlanRow({name:"Carlos Lourenco",role:"Project Manager",cap:0.25,city:"Lisbon"});
+  addPlanRow({name:"Miguel Pereira",role:"Data Scientist",cap:3.5,city:"Lisbon",pto:"18/09/2026-25/09/2026"});
+  addPlanRow({name:"Clara Pereira",role:"Data Scientist",cap:3.5,city:"Lisbon",cover:"Miguel Pereira"});
+  generate();
+}
+
+document.getElementById("addPlan").addEventListener("click",()=>addPlanRow());
+document.getElementById("generate").addEventListener("click",generate);
+document.getElementById("download").addEventListener("click",download);
+document.getElementById("loadTwint").addEventListener("click",loadTwint);
+(function(){ const t=new Date(); const eoy=new Date(t.getFullYear(),11,31);
+  document.getElementById("startDate").value=t.toISOString().slice(0,10);
+  document.getElementById("endDate").value=eoy.toISOString().slice(0,10);
+  addPlanRow({city:"Lisbon"});
+})();
+</script>
+</body>
+</html>

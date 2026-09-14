@@ -5,7 +5,18 @@ attachment on the Change Request (CR) portal. You provide a small input CSV
 with the project header and each resource's weekly allocation; the generator
 computes every derived value so the output matches the official spreadsheet.
 
-## Run
+## Three ways to build a plan
+
+1. **`generate_plan.py`** — CLI, takes an input CSV, writes the plan CSV.
+2. **`index.html`** — browser form for manual weekly entry; live totals; CSV
+   download. Open the file directly, no server needed.
+3. **`planner.html`** — browser **auto-planner**: declare total hours, roles,
+   capacity, city and PTO; it spreads the allocation across the timeline until
+   the hours run out, reducing weeks for Portugal holidays (national + Lisbon /
+   Porto / Coimbra municipal) and PTO, auto-covering PTO with a same-role
+   teammate, and filling the final week to hit the cap exactly.
+
+## Run (CLI)
 
 ```bash
 python3 generate_plan.py input.csv -o plan.csv

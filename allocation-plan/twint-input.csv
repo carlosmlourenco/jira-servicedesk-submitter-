@@ -1,0 +1,11 @@
+[HEADER]
+project_name,twint
+start_date,14/09/2026
+end_date,31/12/2026
+cost_tracker_id,12-346-7
+
+[RESOURCES]
+Name Suggestion,ROLE,PREFERRED ALLOCATION AREA,PREFERRED SENIORITY,14/09,21/09,28/09,05/10,12/10,19/10,26/10,02/11,09/11,16/11,23/11,30/11,07/12,14/12
+Carlos Lourenco,Project Manager,,,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25
+Miguel Pereira,Data Scientist,,,2.5,,3.5,2.5,3.5,3.5,3.5,3.5,3.5,3.5,3.5,2.5,2.5,3.5
+Clara Pereira,Data Scientist,,,,3.5,,,,,,,,,,,,
