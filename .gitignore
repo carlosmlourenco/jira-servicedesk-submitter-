@@ -1,0 +1,16 @@
+# Local credentials — NEVER commit these
+.env
+.env.local
+*.token
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Logs / scratch
+*.log
+tmp/
+out/
