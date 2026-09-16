@@ -60,6 +60,7 @@
 <body>
   <div class="brandbar"><span class="logo">F</span><span class="name">Feedzai</span><span class="tag">Allocation Planner</span></div>
   <div class="wrap">
+  <div id="viewBanner" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
   <h1>Allocation Auto-Planner</h1>
   <div class="sub">Declare total hours, roles, capacity, city and PTO. The planner spreads the allocation across the timeline until hours run out, reducing weeks for Portugal holidays &amp; PTO, and auto-covering PTO with a same-role teammate.</div>
 
@@ -111,6 +112,11 @@
     <div class="legendbar"><span class="sw" style="background:#fff4e0"></span>holiday-reduced week
       <span class="sw" style="background:#fde8ec"></span>PTO-reduced week</div>
     <div class="warn" id="warnings"></div>
+    <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
+      <span class="pill ok" id="planIdPill">Plan ID: —</span>
+      <button class="btn btn-ghost" id="copyLink">🔗 Copy shareable link</button>
+      <span class="muted" id="shareStatus" style="font-size:12px"></span>
+    </div>
   </fieldset>
 
   <fieldset>
@@ -376,6 +382,115 @@ function generate(){
   note.push(`Allocated ${fmtNum(Math.round(allocated*100)/100)}h of ${fmtNum(cap)}h cap across ${weeks.length} week(s).`);
   document.getElementById("planNote").textContent=note.join("\n");
   render();
+  publishShareLink();   // assign a unique ID + build the shareable URL
+}
+
+// ---------- Shareable link (Option A: plan encoded in the URL) ----------
+// The whole plan-state (project header + generated grid) is serialised, so the
+// link re-renders the exact plan with no server and no CSV. Designed so the same
+// state object can later be POSTed to a backend and fetched by ID (Option C).
+let currentPlanId=null;
+
+function slug(s){ return (s||"plan").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "plan"; }
+function shortHash(str){
+  // FNV-1a 32-bit -> 6 hex chars; stable, dependency-free
+  let h=0x811c9dc5;
+  for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193); }
+  return (h>>>0).toString(16).padStart(8,"0").slice(0,6);
+}
+// URL-safe base64 of a UTF-8 JSON string
+function encodeState(obj){
+  const json=JSON.stringify(obj);
+  const b64=btoa(unescape(encodeURIComponent(json)));
+  return b64.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function decodeState(s){
+  s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="=";
+  const json=decodeURIComponent(escape(atob(s)));
+  return JSON.parse(json);
+}
+function buildPlanState(){
+  return {
+    v:1,
+    project:{
+      name:document.getElementById("projName").value,
+      start:document.getElementById("startDate").value,
+      end:document.getElementById("endDate").value,
+      cost:document.getElementById("costId").value,
+      totalHours:document.getElementById("totalHours").value
+    },
+    weeks:weeks.map(w=>w.label),
+    rows:gridRows.map(r=>({name:r.name,role:r.role,city:r.city,
+      weekly:r.weekly.map(v=>Math.round(v*10000)/10000),
+      hol:[...r.holWeeks], pto:[...r.ptoWeeks]})),
+    bpe:{...bpe}
+  };
+}
+function publishShareLink(){
+  const state=buildPlanState();
+  const data=encodeState(state);
+  currentPlanId=slug(state.project.name)+"-"+shortHash(data);
+  const base=location.href.split("#")[0];
+  const url=`${base}#id=${currentPlanId}&d=${data}`;
+  // reflect in the address bar without reloading
+  try{ history.replaceState(null,"",`#id=${currentPlanId}&d=${data}`); }catch(e){}
+  const bar=document.getElementById("shareBar"); bar.style.display="flex";
+  document.getElementById("planIdPill").textContent="Plan ID: "+currentPlanId;
+  document.getElementById("copyLink").dataset.url=url;
+  document.getElementById("shareStatus").textContent="";
+  return url;
+}
+function copyShareLink(){
+  const url=document.getElementById("copyLink").dataset.url||location.href;
+  const status=document.getElementById("shareStatus");
+  const done=()=>{ status.style.color="var(--ok)"; status.textContent="Link copied ✓"; };
+  const fail=()=>{ status.style.color="var(--bad)"; status.textContent="Copy failed — select the address bar instead."; };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done).catch(fail);
+  } else {
+    try{ const ta=document.createElement("textarea"); ta.value=url; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove(); done(); }catch(e){ fail(); }
+  }
+}
+
+// Render a plan directly from a decoded state (used when opening a shared link)
+function renderFromState(state){
+  document.getElementById("projName").value=state.project.name||"";
+  document.getElementById("startDate").value=state.project.start||"";
+  document.getElementById("endDate").value=state.project.end||"";
+  document.getElementById("costId").value=state.project.cost||"";
+  document.getElementById("totalHours").value=state.project.totalHours||"";
+  weeks=(state.weeks||[]).map(lbldate=>{
+    const [d,m]=lbldate.split("/").map(Number);
+    const yr=(state.project.start||"").slice(0,4)||new Date().getFullYear();
+    return {mon:new Date(Number(yr),m-1,d), label:lbldate};
+  });
+  gridRows=(state.rows||[]).map(r=>({name:r.name,role:r.role,city:r.city,
+    weekly:r.weekly, holWeeks:new Set(r.hol||[]), ptoWeeks:new Set(r.pto||[])}));
+  Object.keys(bpe).forEach(k=>delete bpe[k]);
+  Object.assign(bpe, state.bpe||{});
+  render();
+}
+function tryLoadFromURL(){
+  const h=location.hash.replace(/^#/,"");
+  if(!h) return false;
+  const params={}; h.split("&").forEach(kv=>{ const [k,v]=kv.split("="); if(k) params[k]=v||""; });
+  if(!params.d) return false;
+  try{
+    const state=decodeState(params.d);
+    renderFromState(state);
+    currentPlanId=params.id||"";
+    const banner=document.getElementById("viewBanner");
+    banner.style.display="block";
+    banner.textContent=`📄 Viewing shared plan "${params.id||"(unnamed)"}". Edit any field and click Generate to fork a new plan/ID.`;
+    const bar=document.getElementById("shareBar"); bar.style.display="flex";
+    document.getElementById("planIdPill").textContent="Plan ID: "+(params.id||"—");
+    document.getElementById("copyLink").dataset.url=location.href;
+    return true;
+  }catch(e){
+    console.error("Bad plan link", e);
+    return false;
+  }
 }
 
 function fmtNum(n){ if(n===null||n===undefined||isNaN(n)) return ""; const r=Math.round(n*100)/100; return r%1===0?String(r):r.toString(); }
@@ -554,12 +669,16 @@ document.getElementById("icsFile").addEventListener("change",ev=>{
   reader.readAsText(file);
 });
 document.getElementById("fillPto").addEventListener("click",fillPtoFromCalendar);
+document.getElementById("copyLink").addEventListener("click",copyShareLink);
 
 document.getElementById("addPlan").addEventListener("click",()=>addPlanRow());
 document.getElementById("generate").addEventListener("click",generate);
 document.getElementById("download").addEventListener("click",download);
 document.getElementById("loadTwint").addEventListener("click",loadTwint);
-(function(){ const t=new Date(); const eoy=new Date(t.getFullYear(),11,31);
+(function(){
+  // If opened via a shared plan link (#id=...&d=...), render that plan.
+  if(tryLoadFromURL()) return;
+  const t=new Date(); const eoy=new Date(t.getFullYear(),11,31);
   document.getElementById("startDate").value=t.toISOString().slice(0,10);
   document.getElementById("endDate").value=eoy.toISOString().slice(0,10);
   addPlanRow({city:"Lisbon"});
