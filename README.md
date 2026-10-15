@@ -6,7 +6,7 @@ line, using nothing but `bash`, `curl`, and `python3` (all built in on macOS).
 It targets a specific portal request type — for example the one behind:
 
 ```
-https://fdz.atlassian.net/servicedesk/customer/portal/2065/group/2232/create/2932
+https://your-domain.atlassian.net/servicedesk/customer/portal/2065/group/2232/create/2932
 ```
 
 where `2065` is the service desk (portal) ID and `2932` is the request type ID.
