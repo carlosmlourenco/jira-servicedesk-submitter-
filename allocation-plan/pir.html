@@ -110,10 +110,12 @@
   </fieldset>
 
   <div class="toolbar">
+    <button class="btn btn-primary" id="suggest">✨ Suggest allocation</button>
     <button class="btn btn-primary" id="generate">⚙ Generate</button>
     <button class="btn btn-primary" id="download">⬇ Download CSV</button>
     <button class="btn btn-ghost" id="loadExample">Load example</button>
   </div>
+  <div class="muted" id="suggestNote" style="font-size:12px; margin-top:-6px"></div>
   <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
     <span class="pill ok" id="planIdPill">Plan ID: —</span>
     <button class="btn btn-ghost" id="copyLink">🔗 Copy shareable link</button>
@@ -133,6 +135,10 @@ const ROLE_TO_PIR={"delivery manager":"DM","project manager":"PM","data scientis
  "business analyst":"BA","st":"ST"};
 // Friendly labels for the breakdown inputs (one per PIR code)
 const ROLE_LABELS={DM:"DM",PM:"PM",DS:"DS",RiskC:"Risk C",BA:"BA",ST:"ST"};
+// Representative role name (for the people grid) per PIR code
+const CODE_TO_ROLE={DM:"Delivery Manager",PM:"Project Manager",DS:"Data Scientist",
+  RiskC:"Risk Consultant",BA:"Business Analyst",ST:"ST"};
+const MAX_PEOPLE_PER_ROLE=3;
 
 let weeks=[];           // [{mon:Date,label:"dd/mm"}]
 let gridRows=[];        // [{name,role,weekly:[...]}]
@@ -332,6 +338,75 @@ function copyShareLink(){
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok).catch(no);
   else { try{const ta=document.createElement("textarea");ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok();}catch(e){no();} }
 }
+// ---------- Suggest allocation (flat; same window for all roles) ----------
+// Rules:
+//  - N weeks = ceil(days_of_biggest_role / (3 people x 4 days))  [starts at start date]
+//  - each role split into ceil((days_role/N)/4) people (max 3), fill to 4 then remainder
+//  - flat, multiples of 0.25; rounding remainder spread 0.25/week without exceeding 4
+//  - every role/person spans the same N weeks (same start & end)
+function suggestAllocation(){
+  const note=document.getElementById("suggestNote");
+  const start=parseISO(document.getElementById("startDate").value);
+  if(!start){ note.textContent="Set a start date first."; return; }
+  // days per PIR code from the breakdown (hours / 8)
+  const days={};
+  PIR_ORDER.forEach(c=>{ const h=bpe[c]; if(h!=null&&!isNaN(h)&&h>0) days[c]=h/HOURS_PER_DAY; });
+  if(Object.keys(days).length===0){ note.textContent="Fill the role breakdown (hours) first."; return; }
+
+  const maxDays=Math.max(...Object.values(days));
+  let N=Math.ceil(maxDays/(MAX_PEOPLE_PER_ROLE*MAXLINE));
+  if(N<1) N=1;
+
+  // build week window from start date (N weeks), set end date accordingly
+  let cur=mondayOf(start); weeks=[];
+  for(let i=0;i<N;i++){ weeks.push({mon:new Date(cur), label:lbl(cur)}); cur.setDate(cur.getDate()+7); }
+  // reflect end date (last week's monday + 4 days = Friday) in the input
+  const endMon=weeks[N-1].mon; const endFri=new Date(endMon); endFri.setDate(endFri.getDate()+4);
+  const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  document.getElementById("endDate").value=iso(endFri);
+
+  const warnings=[];
+  const peopleRows=[];
+  PIR_ORDER.forEach(code=>{
+    if(!days[code]) return;
+    const totalDays=days[code];
+    const perWeekTotal=totalDays/N;                    // days/week to spread across people
+    let nppl=Math.ceil(perWeekTotal/MAXLINE);
+    if(nppl>MAX_PEOPLE_PER_ROLE){ nppl=MAX_PEOPLE_PER_ROLE;
+      warnings.push(`${code}: needs more than ${MAX_PEOPLE_PER_ROLE} people — capped (will fall short).`); }
+    // per-person target days/week: fill to 4, remainder on the last person
+    let remainingWeek=perWeekTotal;
+    const targets=[];
+    for(let p=0;p<nppl;p++){ const w=remainingWeek>MAXLINE?MAXLINE:remainingWeek; targets.push(w); remainingWeek-=w; }
+    targets.forEach((targetWeek,p)=>{
+      const personTotalDays=targetWeek*N;
+      // base = floor to 0.25; distribute remainder 0.25/week without exceeding 4
+      let base=Math.floor(targetWeek/MIN)*MIN; if(base>MAXLINE) base=MAXLINE;
+      const wk=new Array(N).fill(base);
+      let steps=Math.round((personTotalDays - base*N)/MIN);
+      let i=0, guard=0;
+      while(steps>0 && guard<steps*N+N){
+        const idx=i%N;
+        if(wk[idx]+MIN<=MAXLINE+1e-9){ wk[idx]=Math.round((wk[idx]+MIN)*10000)/10000; steps--; }
+        i++; guard++;
+      }
+      peopleRows.push({name:`${code} ${p+1}`, role:CODE_TO_ROLE[code],
+        weekly:wk.map(v=>v>0?fmtNum(v):"")});
+    });
+  });
+
+  // render the people grid
+  renderHead();
+  document.getElementById("gridBody").innerHTML="";
+  peopleRows.forEach(r=>addRow(r));
+  render();
+
+  const totH=Object.values(days).reduce((a,b)=>a+b,0)*HOURS_PER_DAY;
+  note.style.color = warnings.length? "var(--bad)":"var(--muted)";
+  note.textContent = `Suggested ${peopleRows.length} person-line(s) over ${N} week(s) for ${fmtNum(totH)}h.`
+    + (warnings.length? "  ⚠️ "+warnings.join(" "):"");
+}
+
 function generate(){
   buildWeeks();
   // sync gridRows from DOM
@@ -390,6 +465,7 @@ function loadExample(){
 }
 
 document.getElementById("addRow").addEventListener("click",()=>{addRow();render();});
+document.getElementById("suggest").addEventListener("click",suggestAllocation);
 document.getElementById("generate").addEventListener("click",generate);
 document.getElementById("download").addEventListener("click",download);
 document.getElementById("copyLink").addEventListener("click",copyShareLink);
