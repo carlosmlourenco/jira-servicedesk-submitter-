@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIR — Project Initiation Request</title>
+<style>
+  /* Palette: dark forest green #232F0F + lime accent #B9FF8D */
+  :root {
+    --brand:#232F0F; --accent:#B9FF8D; --accent-ink:#232F0F;
+    --line:#e0e2d8; --grey:#f2f4ec; --ink:#232F0F; --muted:#6b7261;
+    --ok:#2f7d32; --bad:#b3261e; --warnc:#8a6d00;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; margin:0; color:var(--ink); background:#f6f7f2; }
+  .brandbar { background:var(--brand); color:#fff; padding:16px 24px; display:flex; align-items:center; gap:12px; }
+  .brandbar .logo { width:26px; height:26px; border-radius:6px; background:var(--accent);
+    display:inline-flex; align-items:center; justify-content:center; color:var(--brand); font-weight:800; font-size:15px; }
+  .brandbar .name { font-weight:700; letter-spacing:.2px; }
+  .brandbar .tag { color:var(--accent); font-size:12px; font-weight:600; }
+  .wrap { padding:24px; }
+  h1 { font-size:20px; margin:0 0 4px; color:var(--brand); }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:18px; }
+  fieldset { border:1px solid var(--line); border-radius:10px; margin:0 0 18px; padding:14px 16px; background:#fff; }
+  legend { font-weight:700; font-size:13px; padding:0 6px; color:var(--brand); }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
+  input, select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); }
+  input:focus, select:focus { outline:2px solid var(--brand); border-color:var(--brand); }
+  .hdr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th, td { border:1px solid var(--line); padding:4px 6px; text-align:center; white-space:nowrap; }
+  th { background:var(--brand); color:#fff; font-weight:600; }
+  td.calc { background:var(--grey); color:var(--brand); font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  td input, td select { border:none; width:100%; text-align:center; padding:4px; background:transparent; color:var(--ink); }
+  td.wk input { width:52px; }
+  td.meta input, td.meta select { min-width:120px; text-align:left; }
+  .btn { font:inherit; font-weight:700; padding:8px 14px; border:none; border-radius:6px; cursor:pointer; }
+  .btn-primary { background:var(--accent); color:var(--accent-ink); }
+  .btn-primary:hover { filter:brightness(0.96); }
+  .btn-ghost { background:#fff; border:1px solid var(--brand); color:var(--brand); }
+  .btn-ghost:hover { background:var(--grey); }
+  .btn-danger { background:#fff; border:1px solid var(--line); color:var(--bad); }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0; align-items:center; }
+  .pill { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:700; }
+  .pill.ok { background:var(--accent); color:var(--brand); } .pill.bad { background:#fbe1de; color:var(--bad); }
+  .warn { color:var(--bad); font-size:12px; margin-top:8px; white-space:pre-line; }
+  .muted { color:var(--muted); }
+  .roles-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
+  .plan-row { display:grid; grid-template-columns:1.6fr 1.4fr auto; gap:8px; align-items:end; margin-bottom:8px; }
+  .plan-row input, .plan-row select { width:100%; }
+  code { background:var(--grey); padding:1px 5px; border-radius:4px; color:var(--brand); }
+</style>
+</head>
+<body>
+  <div class="brandbar"><span class="logo">P</span><span class="name">Resource Planner</span><span class="tag">PIR</span></div>
+  <div class="wrap">
+  <div id="viewBanner" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
+  <h1>PIR — Project Initiation Request</h1>
+  <div class="sub">Define o projeto, as horas totais e o breakdown por role. Adiciona as pessoas e a sua alocação semanal. Gera o CSV e um link único partilhável.</div>
+
+  <fieldset>
+    <legend>Projeto</legend>
+    <div class="hdr-grid">
+      <div><label>Project name</label><input id="projName" placeholder="nome do projeto"></div>
+      <div><label>Start date</label><input id="startDate" type="date"></div>
+      <div><label>End date</label><input id="endDate" type="date"></div>
+      <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
+      <div><label>Horas totais</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Breakdown por role (horas)</legend>
+    <div class="roles-grid" id="rolesGrid"></div>
+    <div class="toolbar">
+      <span class="pill ok" id="breakdownPill">Breakdown — / — h</span>
+      <span class="muted" style="font-size:12px">A soma do breakdown deve bater certo com as horas totais.</span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Pessoas — alocação semanal (dias/semana)</legend>
+    <div class="scroll">
+      <table id="grid">
+        <thead><tr id="gridHead"></tr></thead>
+        <tbody id="gridBody"></tbody>
+        <tfoot><tr id="gridTotal"></tr></tfoot>
+      </table>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-ghost" id="addRow">+ Adicionar pessoa</button>
+      <span class="muted" style="font-size:12px">Semanas geradas a partir das datas. Valores em dias/semana (×8h).</span>
+    </div>
+    <div class="warn" id="warnings"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>PIR — Time Logging &amp; BPE</legend>
+    <div class="scroll">
+      <table class="pir">
+        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours per role</th><th>AI Comment</th></tr></thead>
+        <tbody id="pirBody"></tbody>
+        <tfoot><tr id="pirTotal"></tr></tfoot>
+      </table>
+    </div>
+    <div class="toolbar">
+      <span id="matchPill" class="pill ok">Total Values Match? —</span>
+    </div>
+  </fieldset>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" id="generate">⚙ Generate</button>
+    <button class="btn btn-primary" id="download">⬇ Download CSV</button>
+    <button class="btn btn-ghost" id="loadExample">Carregar exemplo</button>
+  </div>
+  <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
+    <span class="pill ok" id="planIdPill">Plan ID: —</span>
+    <button class="btn btn-ghost" id="copyLink">🔗 Copiar link partilhável</button>
+    <span class="muted" id="shareStatus" style="font-size:12px"></span>
+  </div>
+  </div><!-- /.wrap -->
+
+<script>
+const HOURS_PER_DAY=8, FULL_WEEK=5, MIN=0.25, MAXLINE=4;
+// PIR codes for this PIR form (ST = Service Team replaces the old ENG (TS))
+const PIR_ORDER=["DM","PM","DS","RiskC","BA","ST"];
+// Roles people can have, mapped to a PIR code
+const ROLES=["Delivery Manager","Project Manager","Data Scientist","Data Analyst",
+ "Risk Consultant","Risk&AI Manager","Business Analyst","ST"];
+const ROLE_TO_PIR={"delivery manager":"DM","project manager":"PM","data scientist":"DS",
+ "data analyst":"DS","risk consultant":"RiskC","risk&ai manager":"RiskC","risk & ai manager":"RiskC",
+ "business analyst":"BA","st":"ST"};
+// Friendly labels for the breakdown inputs (one per PIR code)
+const ROLE_LABELS={DM:"DM",PM:"PM",DS:"DS",RiskC:"Risk C",BA:"BA",ST:"ST"};
+
+let weeks=[];           // [{mon:Date,label:"dd/mm"}]
+let gridRows=[];        // [{name,role,weekly:[...]}]
+const bpe={};           // PIR code -> hours (from breakdown)
+let currentPlanId=null;
+
+// ---------- helpers ----------
+function pad(n){return String(n).padStart(2,"0");}
+function lbl(d){return pad(d.getDate())+"/"+pad(d.getMonth()+1);}
+function parseISO(s){ if(!s) return null; const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+function mondayOf(d){ const x=new Date(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); return x; }
+function fmtNum(n){ if(n===null||n===undefined||isNaN(n)) return ""; const r=Math.round(n*100)/100; return r%1===0?String(r):r.toString(); }
+
+function buildWeeks(){
+  const s=parseISO(document.getElementById("startDate").value);
+  const e=parseISO(document.getElementById("endDate").value);
+  weeks=[]; if(!s||!e) return;
+  let cur=mondayOf(s); const em=mondayOf(e);
+  while(cur<=em){ weeks.push({mon:new Date(cur), label:lbl(cur)}); cur.setDate(cur.getDate()+7); }
+}
+
+// ---------- breakdown by role (feeds BPE) ----------
+function renderBreakdown(){
+  const host=document.getElementById("rolesGrid");
+  if(host.childElementCount===0){
+    PIR_ORDER.forEach(code=>{
+      const div=document.createElement("div");
+      div.innerHTML=`<label>${ROLE_LABELS[code]} (h)</label>`;
+      const inp=document.createElement("input"); inp.type="number"; inp.step="1"; inp.min="0";
+      inp.dataset.code=code; inp.className="bpe-input";
+      inp.addEventListener("input",()=>{ const v=parseFloat(inp.value);
+        if(inp.value==="") delete bpe[code]; else bpe[code]=v; updateBreakdownPill(); render(); });
+      div.appendChild(inp); host.appendChild(div);
+    });
+  }
+  updateBreakdownPill();
+}
+function updateBreakdownPill(){
+  const total=parseFloat(document.getElementById("totalHours").value)||0;
+  let sum=0; PIR_ORDER.forEach(c=>{ if(bpe[c]!=null&&!isNaN(bpe[c])) sum+=bpe[c]; });
+  const pill=document.getElementById("breakdownPill");
+  pill.textContent=`Breakdown ${fmtNum(sum)} / ${fmtNum(total)} h`;
+  pill.className="pill "+(Math.round(sum*1e6)===Math.round(total*1e6)?"ok":"bad");
+}
+
+// ---------- people grid ----------
+function makeRoleSelect(val){
+  const s=document.createElement("select");
+  const b=document.createElement("option"); b.value=""; b.textContent="—"; s.appendChild(b);
+  ROLES.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;if(r===val)o.selected=true;s.appendChild(o);});
+  s.addEventListener("change",render); return s;
+}
+function weekInput(v){ const i=document.createElement("input"); i.type="number"; i.step="0.25"; i.min="0"; i.max="4";
+  if(v!=null&&v!=="") i.value=v; i.addEventListener("input",render); return i; }
+
+function addRow(data){
+  data=data||{};
+  const tr=document.createElement("tr");
+  const nameTd=document.createElement("td"); nameTd.className="meta";
+  const nameI=document.createElement("input"); nameI.placeholder="Nome"; nameI.value=data.name||""; nameI.addEventListener("input",render);
+  nameTd.appendChild(nameI); tr.appendChild(nameTd);
+  ["days","hours","fte"].forEach(k=>{const td=document.createElement("td");td.className="calc "+k;td.textContent="0";tr.appendChild(td);});
+  const roleTd=document.createElement("td"); roleTd.className="meta"; roleTd.appendChild(makeRoleSelect(data.role)); tr.appendChild(roleTd);
+  weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk";
+    td.appendChild(weekInput(data.weekly?data.weekly[idx]:"")); tr.appendChild(td); });
+  const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.className="btn btn-danger"; rm.textContent="✕";
+  rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{tr.remove();render();}); rmTd.appendChild(rm); tr.appendChild(rmTd);
+  document.getElementById("gridBody").appendChild(tr);
+}
+function renderHead(){
+  const head=document.getElementById("gridHead"); head.innerHTML="";
+  ["Name Suggestion","Days","Hours","FTE","ROLE",...weeks.map(w=>w.label),""].forEach(c=>{
+    const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
+}
+function collect(){
+  const rows=[];
+  document.querySelectorAll("#gridBody tr").forEach(tr=>{
+    const name=tr.querySelector("td.meta input")?tr.querySelector("td.meta input").value:"";
+    const role=tr.querySelector("td.meta select")?tr.querySelector("td.meta select").value:"";
+    const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value));
+    rows.push({name,role,weekly});
+  });
+  return rows;
+}
+function rebuildWeeks(){
+  const existing=collect();
+  buildWeeks(); renderHead();
+  document.getElementById("gridBody").innerHTML="";
+  existing.forEach(r=>addRow(r));
+  if(existing.length===0) addRow();
+  render();
+}
+
+// ---------- compute + render ----------
+function render(){
+  const warns=[]; let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0);
+  gridRows=[];
+  document.querySelectorAll("#gridBody tr").forEach(tr=>{
+    const name=tr.querySelector("td.meta input").value;
+    const role=tr.querySelector("td.meta select").value;
+    const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value===""?0:parseFloat(i.value)||0));
+    const active=weekly.filter(v=>v>0);
+    const days=weekly.reduce((a,b)=>a+b,0), hours=days*HOURS_PER_DAY;
+    const fte=active.length?(days/active.length/FULL_WEEK):null;
+    tr.querySelector(".days").textContent=fmtNum(days);
+    tr.querySelector(".hours").textContent=hours.toFixed(2);
+    tr.querySelector(".fte").textContent=fte===null?"#DIV/0!":fte.toFixed(2);
+    gd+=days; gh+=hours;
+    const code=ROLE_TO_PIR[(role||"").toLowerCase()]; if(code)pir[code]+=days;
+    else if((role||"").trim()) warns.push(`Role "${role}" sem mapeamento PIR.`);
+    active.forEach(v=>{ if(v>MAXLINE) warns.push(`${name||"?"}: ${fmtNum(v)} excede ${MAXLINE}/linha.`); });
+    gridRows.push({name,role,weekly});
+  });
+  const gt=document.getElementById("gridTotal"); gt.innerHTML="";
+  ["TOTAL",fmtNum(gd),fmtNum(gh),"","",...weeks.map(()=>""),""].forEach(c=>{const td=document.createElement("td");td.className="calc";td.textContent=c;gt.appendChild(td);});
+  // PIR section — BPE comes from the breakdown
+  const pb=document.getElementById("pirBody"); pb.innerHTML=""; let pd=0,ph=0;
+  PIR_ORDER.forEach(code=>{ const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
+    const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){ if(h<b)cm="hours missing"; else if(h>b)cm="exceed"; }
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td><td>${b==null?"":fmtNum(b)}</td><td>${cm}</td>`;
+    if(cm){ tr.lastChild.style.color = cm==="exceed"?"#b3261e":"#8a6d00"; }
+    pb.appendChild(tr);
+  });
+  document.getElementById("pirTotal").innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td><td></td>`;
+  const match=Math.round(gh*1e6)===Math.round(ph*1e6);
+  const mp=document.getElementById("matchPill"); mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad");
+  document.getElementById("warnings").textContent=warns.length?"⚠️ "+[...new Set(warns)].join("\n⚠️ "):"";
+}
+
+// ---------- CSV (identical template to the other tools) ----------
+function csvEscape(v){v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function toCSV(){
+  const proj=document.getElementById("projName").value;
+  const sV=document.getElementById("startDate").value, eV=document.getElementById("endDate").value;
+  const d2=s=>s?s.split("-").reverse().join("/"):""; const year=sV?sV.slice(0,4):"";
+  const L=[];
+  L.push([proj,"","","(Mandatory fields)","Project Start date",d2(sV)]);
+  L.push(["","","","","Project End date",d2(eV)]);
+  L.push(["Cost Tracker ID",document.getElementById("costId").value,"","","Hours per day",HOURS_PER_DAY]);
+  L.push([]); L.push(["","","","","","","","Weekly Resourcing Need"]);
+  L.push(["","","","(Mandatory fields)","","","",year]);
+  L.push(["Name Suggestion","Days per role","Hours per role","FTE Average","ROLE","PREFERRED ALLOCATION AREA","PREFERRED SENIORITY",...weeks.map(w=>w.label)]);
+  let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0);
+  gridRows.forEach(r=>{ const wk=r.weekly.map(v=>v===""?0:(parseFloat(v)||0));
+    const active=wk.filter(v=>v>0); const days=wk.reduce((a,b)=>a+b,0),hours=days*HOURS_PER_DAY;
+    const fte=active.length?(days/active.length/FULL_WEEK):null; gd+=days; gh+=hours;
+    const code=ROLE_TO_PIR[(r.role||"").toLowerCase()]; if(code)pir[code]+=days;
+    L.push([r.name,fmtNum(days),hours.toFixed(2),fte===null?"#DIV/0!":fte.toFixed(2),r.role,"","",
+      ...wk.map(v=>v>0?fmtNum(v):"")]);
+  });
+  L.push(["TOTAL",fmtNum(gd),fmtNum(gh)]); L.push([]); L.push([]);
+  L.push(["","","(Use below values in the PIR)","(Mandatory field)"]);
+  L.push(["Time Loging","Days","Hours","BPE Hours per role","AI Comment"]);
+  let pd=0,ph=0;
+  PIR_ORDER.forEach(code=>{const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
+    const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){if(h<b)cm="hours missing";else if(h>b)cm="exceed";}
+    L.push([code,fmtNum(d),fmtNum(h),b==null?"":fmtNum(b),cm]);});
+  L.push(["Total",fmtNum(pd),fmtNum(ph)]);
+  L.push(["Total Values Match?",Math.round(gh*1e6)===Math.round(ph*1e6)?"TRUE":"FALSE"]);
+  return L.map(r=>r.map(csvEscape).join(",")).join("\n");
+}
+function download(){ const csv=toCSV();
+  const name=(document.getElementById("projName").value||"pir").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"pir";
+  const b=new Blob([csv],{type:"text/csv"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=name+"-pir.csv"; a.click();
+}
+
+// ---------- shareable link (plan encoded in URL; same approach as planner) ----------
+function slug(s){ return (s||"pir").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"pir"; }
+function shortHash(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193);} return (h>>>0).toString(16).padStart(8,"0").slice(0,6); }
+function encodeState(obj){ const j=JSON.stringify(obj); const b=btoa(unescape(encodeURIComponent(j))); return b.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function decodeState(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4)s+="="; return JSON.parse(decodeURIComponent(escape(atob(s)))); }
+function buildState(){
+  return { v:1,
+    project:{ name:document.getElementById("projName").value, start:document.getElementById("startDate").value,
+      end:document.getElementById("endDate").value, cost:document.getElementById("costId").value,
+      totalHours:document.getElementById("totalHours").value },
+    weeks:weeks.map(w=>w.label),
+    rows:gridRows.map(r=>({name:r.name,role:r.role,weekly:r.weekly.map(v=>v===""?0:(parseFloat(v)||0))})),
+    bpe:{...bpe} };
+}
+function publishShareLink(){
+  const state=buildState(); const data=encodeState(state);
+  currentPlanId=slug(state.project.name)+"-"+shortHash(data);
+  const url=location.href.split("#")[0]+`#id=${currentPlanId}&d=${data}`;
+  try{ history.replaceState(null,"",`#id=${currentPlanId}&d=${data}`); }catch(e){}
+  document.getElementById("shareBar").style.display="flex";
+  document.getElementById("planIdPill").textContent="Plan ID: "+currentPlanId;
+  document.getElementById("copyLink").dataset.url=url;
+  document.getElementById("shareStatus").textContent="";
+}
+function copyShareLink(){
+  const url=document.getElementById("copyLink").dataset.url||location.href;
+  const st=document.getElementById("shareStatus");
+  const ok=()=>{st.style.color="var(--ok)";st.textContent="Link copiado ✓";};
+  const no=()=>{st.style.color="var(--bad)";st.textContent="Falhou — copia da barra de endereço.";};
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok).catch(no);
+  else { try{const ta=document.createElement("textarea");ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok();}catch(e){no();} }
+}
+function generate(){
+  buildWeeks();
+  // sync gridRows from DOM
+  render();
+  publishShareLink();
+}
+function renderFromState(state){
+  document.getElementById("projName").value=state.project.name||"";
+  document.getElementById("startDate").value=state.project.start||"";
+  document.getElementById("endDate").value=state.project.end||"";
+  document.getElementById("costId").value=state.project.cost||"";
+  document.getElementById("totalHours").value=state.project.totalHours||"";
+  Object.keys(bpe).forEach(k=>delete bpe[k]); Object.assign(bpe, state.bpe||{});
+  // rebuild breakdown inputs with loaded values
+  document.getElementById("rolesGrid").innerHTML=""; renderBreakdown();
+  document.querySelectorAll(".bpe-input").forEach(inp=>{ const c=inp.dataset.code; if(bpe[c]!=null) inp.value=bpe[c]; });
+  buildWeeks(); renderHead();
+  // override weeks labels from state (keeps exact columns)
+  if(state.weeks&&state.weeks.length){ weeks=state.weeks.map(l=>{const [d,m]=l.split("/").map(Number);
+    const yr=(state.project.start||"").slice(0,4)||new Date().getFullYear();
+    return {mon:new Date(Number(yr),m-1,d), label:l};}); renderHead(); }
+  document.getElementById("gridBody").innerHTML="";
+  (state.rows||[]).forEach(r=>addRow({name:r.name,role:r.role,weekly:r.weekly}));
+  if(!(state.rows||[]).length) addRow();
+  render(); updateBreakdownPill();
+}
+function tryLoadFromURL(){
+  const h=location.hash.replace(/^#/,""); if(!h) return false;
+  const params={}; h.split("&").forEach(kv=>{const [k,v]=kv.split("=");if(k)params[k]=v||"";});
+  if(!params.d) return false;
+  try{ renderFromState(decodeState(params.d)); currentPlanId=params.id||"";
+    const banner=document.getElementById("viewBanner"); banner.style.display="block";
+    banner.textContent=`📄 A ver PIR partilhado "${params.id||"(sem nome)"}". Edita e clica Generate para criar um novo ID.`;
+    document.getElementById("shareBar").style.display="flex";
+    document.getElementById("planIdPill").textContent="Plan ID: "+(params.id||"—");
+    document.getElementById("copyLink").dataset.url=location.href;
+    return true;
+  }catch(e){ console.error("Link PIR inválido",e); return false; }
+}
+
+function loadExample(){
+  document.getElementById("projName").value="exemplo";
+  document.getElementById("startDate").value="2026-09-14";
+  document.getElementById("endDate").value="2026-10-12";
+  document.getElementById("costId").value="12-346-7";
+  document.getElementById("totalHours").value="400";
+  document.getElementById("rolesGrid").innerHTML=""; Object.keys(bpe).forEach(k=>delete bpe[k]);
+  Object.assign(bpe,{DM:0,PM:160,DS:160,RiskC:0,BA:80,ST:0}); renderBreakdown();
+  document.querySelectorAll(".bpe-input").forEach(inp=>{ if(bpe[inp.dataset.code]!=null) inp.value=bpe[inp.dataset.code]; });
+  rebuildWeeks();
+  document.getElementById("gridBody").innerHTML="";
+  addRow({name:"Pessoa PM",role:"Project Manager",weekly:["0.5","0.5","0.5","0.5","0.5"]});
+  addRow({name:"Pessoa DS",role:"Data Scientist",weekly:["4","4","4","4","4"]});
+  addRow({name:"Pessoa BA",role:"Business Analyst",weekly:["2","2","2","2","2"]});
+  render(); updateBreakdownPill();
+}
+
+document.getElementById("addRow").addEventListener("click",()=>{addRow();render();});
+document.getElementById("generate").addEventListener("click",generate);
+document.getElementById("download").addEventListener("click",download);
+document.getElementById("copyLink").addEventListener("click",copyShareLink);
+document.getElementById("loadExample").addEventListener("click",loadExample);
+document.getElementById("startDate").addEventListener("change",rebuildWeeks);
+document.getElementById("endDate").addEventListener("change",rebuildWeeks);
+document.getElementById("totalHours").addEventListener("input",updateBreakdownPill);
+
+(function(){
+  renderBreakdown();
+  if(tryLoadFromURL()) return;
+  const t=new Date(); const eoy=new Date(t.getFullYear(),11,31);
+  document.getElementById("startDate").value=t.toISOString().slice(0,10);
+  document.getElementById("endDate").value=eoy.toISOString().slice(0,10);
+  rebuildWeeks();
+})();
+</script>
+</body>
+</html>
