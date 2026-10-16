@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -57,30 +57,30 @@
   <div class="wrap">
   <div id="viewBanner" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
   <h1>PIR — Project Initiation Request</h1>
-  <div class="sub">Define o projeto, as horas totais e o breakdown por role. Adiciona as pessoas e a sua alocação semanal. Gera o CSV e um link único partilhável.</div>
+  <div class="sub">Define the project, the total hours and the breakdown per role. Add the people and their weekly allocation. Generate the CSV and a unique shareable link.</div>
 
   <fieldset>
-    <legend>Projeto</legend>
+    <legend>Project</legend>
     <div class="hdr-grid">
-      <div><label>Project name</label><input id="projName" placeholder="nome do projeto"></div>
+      <div><label>Project name</label><input id="projName" placeholder="project name"></div>
       <div><label>Start date</label><input id="startDate" type="date"></div>
       <div><label>End date</label><input id="endDate" type="date"></div>
       <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
-      <div><label>Horas totais</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
+      <div><label>Total hours</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
     </div>
   </fieldset>
 
   <fieldset>
-    <legend>Breakdown por role (horas)</legend>
+    <legend>Breakdown per role (hours)</legend>
     <div class="roles-grid" id="rolesGrid"></div>
     <div class="toolbar">
       <span class="pill ok" id="breakdownPill">Breakdown — / — h</span>
-      <span class="muted" style="font-size:12px">A soma do breakdown deve bater certo com as horas totais.</span>
+      <span class="muted" style="font-size:12px">The breakdown sum must match the total hours.</span>
     </div>
   </fieldset>
 
   <fieldset>
-    <legend>Pessoas — alocação semanal (dias/semana)</legend>
+    <legend>People — weekly allocation (days/week)</legend>
     <div class="scroll">
       <table id="grid">
         <thead><tr id="gridHead"></tr></thead>
@@ -89,8 +89,8 @@
       </table>
     </div>
     <div class="toolbar">
-      <button class="btn btn-ghost" id="addRow">+ Adicionar pessoa</button>
-      <span class="muted" style="font-size:12px">Semanas geradas a partir das datas. Valores em dias/semana (×8h).</span>
+      <button class="btn btn-ghost" id="addRow">+ Add person</button>
+      <span class="muted" style="font-size:12px">Weeks generated from the dates. Values in days/week (×8h).</span>
     </div>
     <div class="warn" id="warnings"></div>
   </fieldset>
@@ -112,11 +112,11 @@
   <div class="toolbar">
     <button class="btn btn-primary" id="generate">⚙ Generate</button>
     <button class="btn btn-primary" id="download">⬇ Download CSV</button>
-    <button class="btn btn-ghost" id="loadExample">Carregar exemplo</button>
+    <button class="btn btn-ghost" id="loadExample">Load example</button>
   </div>
   <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
     <span class="pill ok" id="planIdPill">Plan ID: —</span>
-    <button class="btn btn-ghost" id="copyLink">🔗 Copiar link partilhável</button>
+    <button class="btn btn-ghost" id="copyLink">🔗 Copy shareable link</button>
     <span class="muted" id="shareStatus" style="font-size:12px"></span>
   </div>
   </div><!-- /.wrap -->
@@ -242,8 +242,8 @@ function render(){
     tr.querySelector(".fte").textContent=fte===null?"#DIV/0!":fte.toFixed(2);
     gd+=days; gh+=hours;
     const code=ROLE_TO_PIR[(role||"").toLowerCase()]; if(code)pir[code]+=days;
-    else if((role||"").trim()) warns.push(`Role "${role}" sem mapeamento PIR.`);
-    active.forEach(v=>{ if(v>MAXLINE) warns.push(`${name||"?"}: ${fmtNum(v)} excede ${MAXLINE}/linha.`); });
+    else if((role||"").trim()) warns.push(`Role "${role}" has no PIR mapping.`);
+    active.forEach(v=>{ if(v>MAXLINE) warns.push(`${name||"?"}: ${fmtNum(v)} exceeds ${MAXLINE}/line.`); });
     gridRows.push({name,role,weekly});
   });
   const gt=document.getElementById("gridTotal"); gt.innerHTML="";
@@ -327,8 +327,8 @@ function publishShareLink(){
 function copyShareLink(){
   const url=document.getElementById("copyLink").dataset.url||location.href;
   const st=document.getElementById("shareStatus");
-  const ok=()=>{st.style.color="var(--ok)";st.textContent="Link copiado ✓";};
-  const no=()=>{st.style.color="var(--bad)";st.textContent="Falhou — copia da barra de endereço.";};
+  const ok=()=>{st.style.color="var(--ok)";st.textContent="Link copied ✓";};
+  const no=()=>{st.style.color="var(--bad)";st.textContent="Copy failed — copy it from the address bar.";};
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok).catch(no);
   else { try{const ta=document.createElement("textarea");ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok();}catch(e){no();} }
 }
@@ -364,16 +364,16 @@ function tryLoadFromURL(){
   if(!params.d) return false;
   try{ renderFromState(decodeState(params.d)); currentPlanId=params.id||"";
     const banner=document.getElementById("viewBanner"); banner.style.display="block";
-    banner.textContent=`📄 A ver PIR partilhado "${params.id||"(sem nome)"}". Edita e clica Generate para criar um novo ID.`;
+    banner.textContent=`📄 Viewing shared PIR "${params.id||"(unnamed)"}". Edit any field and click Generate to create a new ID.`;
     document.getElementById("shareBar").style.display="flex";
     document.getElementById("planIdPill").textContent="Plan ID: "+(params.id||"—");
     document.getElementById("copyLink").dataset.url=location.href;
     return true;
-  }catch(e){ console.error("Link PIR inválido",e); return false; }
+  }catch(e){ console.error("Invalid PIR link",e); return false; }
 }
 
 function loadExample(){
-  document.getElementById("projName").value="exemplo";
+  document.getElementById("projName").value="example";
   document.getElementById("startDate").value="2026-09-14";
   document.getElementById("endDate").value="2026-10-12";
   document.getElementById("costId").value="12-346-7";
@@ -383,9 +383,9 @@ function loadExample(){
   document.querySelectorAll(".bpe-input").forEach(inp=>{ if(bpe[inp.dataset.code]!=null) inp.value=bpe[inp.dataset.code]; });
   rebuildWeeks();
   document.getElementById("gridBody").innerHTML="";
-  addRow({name:"Pessoa PM",role:"Project Manager",weekly:["0.5","0.5","0.5","0.5","0.5"]});
-  addRow({name:"Pessoa DS",role:"Data Scientist",weekly:["4","4","4","4","4"]});
-  addRow({name:"Pessoa BA",role:"Business Analyst",weekly:["2","2","2","2","2"]});
+  addRow({name:"Person PM",role:"Project Manager",weekly:["0.5","0.5","0.5","0.5","0.5"]});
+  addRow({name:"Person DS",role:"Data Scientist",weekly:["4","4","4","4","4"]});
+  addRow({name:"Person BA",role:"Business Analyst",weekly:["2","2","2","2","2"]});
   render(); updateBreakdownPill();
 }
 
