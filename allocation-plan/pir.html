@@ -64,7 +64,8 @@
     <div class="hdr-grid">
       <div><label>Project name</label><input id="projName" placeholder="project name"></div>
       <div><label>Start date</label><input id="startDate" type="date"></div>
-      <div><label>End date</label><input id="endDate" type="date"></div>
+      <div><label>Duration (weeks)</label><input id="durationWeeks" type="number" step="1" min="1" placeholder="e.g. 8"></div>
+      <div><label>End date (auto)</label><input id="endDate" type="date" readonly style="background:var(--grey)"></div>
       <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
       <div><label>Total hours</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
     </div>
@@ -317,7 +318,8 @@ function decodeState(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length
 function buildState(){
   return { v:1,
     project:{ name:document.getElementById("projName").value, start:document.getElementById("startDate").value,
-      end:document.getElementById("endDate").value, cost:document.getElementById("costId").value,
+      end:document.getElementById("endDate").value, duration:document.getElementById("durationWeeks").value,
+      cost:document.getElementById("costId").value,
       totalHours:document.getElementById("totalHours").value },
     weeks:weeks.map(w=>w.label),
     rows:gridRows.map(r=>({name:r.name,role:r.role,weekly:r.weekly.map(v=>v===""?0:(parseFloat(v)||0))})),
@@ -341,85 +343,75 @@ function copyShareLink(){
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok).catch(no);
   else { try{const ta=document.createElement("textarea");ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok();}catch(e){no();} }
 }
-// ---------- Suggest allocation (flat; same window for all roles) ----------
+// ---------- Suggest allocation (flat; fixed duration in weeks) ----------
+// You give the Duration (N weeks). Allocation spans those N weeks, flat.
 // Rules:
-//  - N weeks = ceil(days_of_biggest_role / (3 people x 4 days))  [starts at start date]
-//  - each role split into ceil((days_role/N)/4) people (max 3), fill to 4 then remainder
-//  - flat, multiples of 0.25; rounding remainder spread 0.25/week without exceeding 4
-//  - every role/person spans the same N weeks (same start & end)
+//  - people per role = ceil((days_role/N)/4), capped: DM=1, PM=1 (2 only when DS
+//    is at its max of 3 people x 4 d/wk), hands-on=3.
+//  - too short (doesn't fit even at the people cap) -> allocate the max and warn.
+//  - too long (days/week < 0.25) -> 0.25 on the first weeks needed, 0 on the rest.
+//  - all roles span the same N weeks; end date is computed from start + N weeks.
+function distributePerson(personTotalDays, N){
+  // returns an N-length array of 0.25-multiples that sum to personTotalDays,
+  // never exceeding 4/week. If < 0.25/week on average, concentrates 0.25 on the
+  // first weeks needed (rest 0).
+  const wk=new Array(N).fill(0);
+  let quarters=Math.round(personTotalDays/MIN);   // number of 0.25 units
+  if(quarters<=0) return wk;
+  const capQ=Math.round(MAXLINE/MIN);             // max 0.25 units per week (=16)
+  if(quarters>=N){
+    const base=Math.floor(quarters/N); let rem=quarters-base*N;
+    for(let w=0;w<N;w++) wk[w]=base*MIN;
+    let w=0;
+    while(rem>0){ if(Math.round(wk[w]/MIN)+1<=capQ){ wk[w]=Math.round((wk[w]+MIN)*10000)/10000; rem--; } w=(w+1)%N; }
+  } else {
+    for(let w=0; w<quarters; w++) wk[w]=MIN;       // 0.25 on the first `quarters` weeks
+  }
+  return wk.map(v=>Math.round(v*10000)/10000);
+}
 function suggestAllocation(){
   const note=document.getElementById("suggestNote");
   const start=parseISO(document.getElementById("startDate").value);
   if(!start){ note.textContent="Set a start date first."; return; }
-  // days per PIR code from the breakdown (hours / 8)
+  const N=parseInt(document.getElementById("durationWeeks").value,10);
+  if(!N||N<1){ note.textContent="Set the Duration (weeks) first."; return; }
   const days={};
   PIR_ORDER.forEach(c=>{ const h=bpe[c]; if(h!=null&&!isNaN(h)&&h>0) days[c]=h/HOURS_PER_DAY; });
   if(Object.keys(days).length===0){ note.textContent="Fill the role breakdown (hours) first."; return; }
 
-  // --- choose N (number of weeks) respecting per-role people caps ---
-  // N must let every role fit at <= 4 days/week within its people cap.
-  const ceilDiv=(a,b)=> a>0?Math.ceil(a/b):0;
-  const chooseN=(pmCap)=>{
-    let n=1;
-    Object.keys(days).forEach(code=>{
-      const cap = code==="PM"?pmCap : (code==="DM"?1:3);
-      n=Math.max(n, ceilDiv(days[code], cap*MAXLINE));
-    });
-    return n;
-  };
-  // step 1: N base ignoring PM (DM=1, hands-on=3)
-  const daysNoPM={}; Object.keys(days).forEach(c=>{ if(c!=="PM") daysNoPM[c]=days[c]; });
-  let N=1;
-  Object.keys(daysNoPM).forEach(code=>{ const cap=(code==="DM")?1:3; N=Math.max(N, ceilDiv(daysNoPM[code], cap*MAXLINE)); });
-  // step 2: is DS at its max (3 people x 4 days/week) at this N?  i.e. days_DS/N >= 12
+  // PM cap: 2 only if DS is at its max (3 people x 4 days/week) within this N
   const dsDays=days.DS||0;
   const dsAtMax = dsDays>0 && (dsDays/N) >= (3*MAXLINE)-1e-9;
-  const pmCap = dsAtMax ? 2 : 1;   // PM only goes to 2 when DS is maxed out
-  // step 3: recompute N including the PM constraint with that capacity
-  N=Math.max(N, chooseN(pmCap));
-  if(N<1) N=1;
+  const pmCap = dsAtMax ? 2 : 1;
 
-  // build week window from start date (N weeks), set end date accordingly
+  // build the N-week window from the start date; set the (read-only) end date
   let cur=mondayOf(start); weeks=[];
   for(let i=0;i<N;i++){ weeks.push({mon:new Date(cur), label:lbl(cur)}); cur.setDate(cur.getDate()+7); }
-  // reflect end date (last week's monday + 4 days = Friday) in the input
-  const endMon=weeks[N-1].mon; const endFri=new Date(endMon); endFri.setDate(endFri.getDate()+4);
+  const endFri=new Date(weeks[N-1].mon); endFri.setDate(endFri.getDate()+4);
   const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   document.getElementById("endDate").value=iso(endFri);
 
-  const warnings=[];
-  const peopleRows=[];
+  const warnings=[]; const peopleRows=[];
   PIR_ORDER.forEach(code=>{
     if(!days[code]) return;
     const totalDays=days[code];
-    const perWeekTotal=totalDays/N;                    // days/week to spread across people
     const capPeople = (code==="PM") ? pmCap : HARD_MAX_PEOPLE[code];
-    let nppl=Math.ceil(perWeekTotal/MAXLINE);
+    const perPersonCapDays = MAXLINE*N;              // max days one person can do over N weeks (4/wk)
+    let nppl=Math.ceil(totalDays/perPersonCapDays);  // people needed to carry all hours at <=4/wk
     if(nppl<1) nppl=1;
     if(nppl>capPeople){ nppl=capPeople;
-      warnings.push(`${code}: exceeds max ${capPeople} person(s) — capped (will fall short).`); }
-    // per-person target days/week: fill to 4, remainder on the last person
-    let remainingWeek=perWeekTotal;
-    const targets=[];
-    for(let p=0;p<nppl;p++){ const w=remainingWeek>MAXLINE?MAXLINE:remainingWeek; targets.push(w); remainingWeek-=w; }
-    targets.forEach((targetWeek,p)=>{
-      const personTotalDays=targetWeek*N;
-      // base = floor to 0.25; distribute remainder 0.25/week without exceeding 4
-      let base=Math.floor(targetWeek/MIN)*MIN; if(base>MAXLINE) base=MAXLINE;
-      const wk=new Array(N).fill(base);
-      let steps=Math.round((personTotalDays - base*N)/MIN);
-      let i=0, guard=0;
-      while(steps>0 && guard<steps*N+N){
-        const idx=i%N;
-        if(wk[idx]+MIN<=MAXLINE+1e-9){ wk[idx]=Math.round((wk[idx]+MIN)*10000)/10000; steps--; }
-        i++; guard++;
-      }
-      peopleRows.push({name:`${code} ${p+1}`, role:CODE_TO_ROLE[code],
-        weekly:wk.map(v=>v>0?fmtNum(v):"")});
-    });
+      warnings.push(`${code}: duration too short — capped at ${capPeople} person(s).`); }
+    // fill each person up to 4/wk (perPersonCapDays), remainder on the last
+    let remaining=totalDays;
+    for(let p=0;p<nppl;p++){
+      const take = remaining>perPersonCapDays ? perPersonCapDays : remaining;
+      const wk=distributePerson(take, N);
+      peopleRows.push({name:`${code} ${p+1}`, role:CODE_TO_ROLE[code], weekly:wk.map(v=>v>0?fmtNum(v):"")});
+      remaining-=take;
+    }
+    if(remaining>0.001) warnings.push(`${code}: ${fmtNum(remaining*HOURS_PER_DAY)}h not allocated (duration too short).`);
   });
 
-  // render the people grid
   renderHead();
   document.getElementById("gridBody").innerHTML="";
   peopleRows.forEach(r=>addRow(r));
@@ -441,6 +433,7 @@ function renderFromState(state){
   document.getElementById("projName").value=state.project.name||"";
   document.getElementById("startDate").value=state.project.start||"";
   document.getElementById("endDate").value=state.project.end||"";
+  document.getElementById("durationWeeks").value=state.project.duration||"";
   document.getElementById("costId").value=state.project.cost||"";
   document.getElementById("totalHours").value=state.project.totalHours||"";
   Object.keys(bpe).forEach(k=>delete bpe[k]); Object.assign(bpe, state.bpe||{});
@@ -480,12 +473,8 @@ function loadExample(){
   document.getElementById("rolesGrid").innerHTML=""; Object.keys(bpe).forEach(k=>delete bpe[k]);
   Object.assign(bpe,{DM:0,PM:160,DS:160,RiskC:0,BA:80,ST:0}); renderBreakdown();
   document.querySelectorAll(".bpe-input").forEach(inp=>{ if(bpe[inp.dataset.code]!=null) inp.value=bpe[inp.dataset.code]; });
-  rebuildWeeks();
-  document.getElementById("gridBody").innerHTML="";
-  addRow({name:"Person PM",role:"Project Manager",weekly:["0.5","0.5","0.5","0.5","0.5"]});
-  addRow({name:"Person DS",role:"Data Scientist",weekly:["4","4","4","4","4"]});
-  addRow({name:"Person BA",role:"Business Analyst",weekly:["2","2","2","2","2"]});
-  render(); updateBreakdownPill();
+  updateBreakdownPill();
+  suggestAllocation();   // demonstrates the suggestion based on duration
 }
 
 document.getElementById("addRow").addEventListener("click",()=>{addRow();render();});
@@ -494,17 +483,28 @@ document.getElementById("generate").addEventListener("click",generate);
 document.getElementById("download").addEventListener("click",download);
 document.getElementById("copyLink").addEventListener("click",copyShareLink);
 document.getElementById("loadExample").addEventListener("click",loadExample);
-document.getElementById("startDate").addEventListener("change",rebuildWeeks);
-document.getElementById("endDate").addEventListener("change",rebuildWeeks);
+// Keep the read-only end date in sync with start + duration (visual feedback).
+function syncEndDate(){
+  const start=parseISO(document.getElementById("startDate").value);
+  const N=parseInt(document.getElementById("durationWeeks").value,10);
+  const out=document.getElementById("endDate");
+  if(!start||!N||N<1){ out.value=""; return; }
+  const mon=mondayOf(start); const endMon=new Date(mon); endMon.setDate(endMon.getDate()+7*(N-1));
+  const endFri=new Date(endMon); endFri.setDate(endFri.getDate()+4);
+  out.value=`${endFri.getFullYear()}-${pad(endFri.getMonth()+1)}-${pad(endFri.getDate())}`;
+}
+document.getElementById("startDate").addEventListener("change",syncEndDate);
+document.getElementById("durationWeeks").addEventListener("input",syncEndDate);
 document.getElementById("totalHours").addEventListener("input",updateBreakdownPill);
 
 (function(){
   renderBreakdown();
   if(tryLoadFromURL()) return;
-  const t=new Date(); const eoy=new Date(t.getFullYear(),11,31);
+  const t=new Date();
   document.getElementById("startDate").value=t.toISOString().slice(0,10);
-  document.getElementById("endDate").value=eoy.toISOString().slice(0,10);
-  rebuildWeeks();
+  document.getElementById("durationWeeks").value="8";
+  syncEndDate();
+  rebuildWeeks();   // builds week columns + a starting empty row
 })();
 </script>
 </body>
