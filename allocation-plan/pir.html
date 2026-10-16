@@ -155,6 +155,16 @@ function parseISO(s){ if(!s) return null; const [y,m,d]=s.split("-").map(Number)
 function mondayOf(d){ const x=new Date(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); return x; }
 function fmtNum(n){ if(n===null||n===undefined||isNaN(n)) return ""; const r=Math.round(n*100)/100; return r%1===0?String(r):r.toString(); }
 
+// Match = for every PIR code, allocated hours (days×8 from the grid) equal the
+// breakdown (BPE). A code with no BPE counts as 0. Takes a {code: days} map.
+function rolesMatchBreakdown(pirDays){
+  return PIR_ORDER.every(code=>{
+    const allocH=(pirDays[code]||0)*HOURS_PER_DAY;
+    const wantH=(bpe[code]!=null&&!isNaN(bpe[code]))?bpe[code]:0;
+    return Math.round(allocH*1e6)===Math.round(wantH*1e6);
+  });
+}
+
 function buildWeeks(){
   const s=parseISO(document.getElementById("startDate").value);
   const e=parseISO(document.getElementById("endDate").value);
@@ -265,7 +275,8 @@ function render(){
     pb.appendChild(tr);
   });
   document.getElementById("pirTotal").innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td>`;
-  const match=Math.round(gh*1e6)===Math.round(ph*1e6);
+  // Match = for EVERY role, allocated hours (grid) equal the breakdown (BPE).
+  const match=rolesMatchBreakdown(pir);
   const mp=document.getElementById("matchPill"); mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad");
   document.getElementById("warnings").textContent=warns.length?"⚠️ "+[...new Set(warns)].join("\n⚠️ "):"";
 }
@@ -299,7 +310,7 @@ function toCSV(){
     const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){if(h<b)cm="hours missing";else if(h>b)cm="exceed";}
     L.push([code,fmtNum(d),fmtNum(h),b==null?"":fmtNum(b),cm]);});
   L.push(["Total",fmtNum(pd),fmtNum(ph)]);
-  L.push(["Total Values Match?",Math.round(gh*1e6)===Math.round(ph*1e6)?"TRUE":"FALSE"]);
+  L.push(["Total Values Match?",rolesMatchBreakdown(pir)?"TRUE":"FALSE"]);
   return L.map(r=>r.map(csvEscape).join(",")).join("\n");
 }
 function download(){ const csv=toCSV();
