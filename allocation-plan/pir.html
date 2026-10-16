@@ -65,9 +65,8 @@
       <div><label>Project name</label><input id="projName" placeholder="project name"></div>
       <div><label>Start date</label><input id="startDate" type="date"></div>
       <div><label>Duration (weeks)</label><input id="durationWeeks" type="number" step="1" min="1" placeholder="e.g. 8"></div>
-      <div><label>End date (auto)</label><input id="endDate" type="date" readonly style="background:var(--grey)"></div>
       <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
-      <div><label>Total hours</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
+      <input id="endDate" type="hidden">
     </div>
   </fieldset>
 
@@ -75,8 +74,8 @@
     <legend>Breakdown per role (hours)</legend>
     <div class="roles-grid" id="rolesGrid"></div>
     <div class="toolbar">
-      <span class="pill ok" id="breakdownPill">Breakdown — / — h</span>
-      <span class="muted" style="font-size:12px">The breakdown sum must match the total hours.</span>
+      <span class="pill ok" id="breakdownPill">Total breakdown: — h</span>
+      <span class="muted" style="font-size:12px">Hours per role. The suggestion never allocates more than these; it may fall slightly short.</span>
     </div>
   </fieldset>
 
@@ -100,7 +99,7 @@
     <legend>PIR — Time Logging &amp; BPE</legend>
     <div class="scroll">
       <table class="pir">
-        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours per role</th><th>AI Comment</th></tr></thead>
+        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours per role</th></tr></thead>
         <tbody id="pirBody"></tbody>
         <tfoot><tr id="pirTotal"></tr></tfoot>
       </table>
@@ -181,11 +180,10 @@ function renderBreakdown(){
   updateBreakdownPill();
 }
 function updateBreakdownPill(){
-  const total=parseFloat(document.getElementById("totalHours").value)||0;
   let sum=0; PIR_ORDER.forEach(c=>{ if(bpe[c]!=null&&!isNaN(bpe[c])) sum+=bpe[c]; });
   const pill=document.getElementById("breakdownPill");
-  pill.textContent=`Breakdown ${fmtNum(sum)} / ${fmtNum(total)} h`;
-  pill.className="pill "+(Math.round(sum*1e6)===Math.round(total*1e6)?"ok":"bad");
+  pill.textContent=`Total breakdown: ${fmtNum(sum)} h`;
+  pill.className="pill ok";
 }
 
 // ---------- people grid ----------
@@ -261,13 +259,12 @@ function render(){
   // PIR section — BPE comes from the breakdown
   const pb=document.getElementById("pirBody"); pb.innerHTML=""; let pd=0,ph=0;
   PIR_ORDER.forEach(code=>{ const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
-    const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){ if(h<b)cm="hours missing"; else if(h>b)cm="exceed"; }
+    const b=bpe[code];
     const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td><td>${b==null?"":fmtNum(b)}</td><td>${cm}</td>`;
-    if(cm){ tr.lastChild.style.color = cm==="exceed"?"#b3261e":"#8a6d00"; }
+    tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td><td>${b==null?"":fmtNum(b)}</td>`;
     pb.appendChild(tr);
   });
-  document.getElementById("pirTotal").innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td><td></td>`;
+  document.getElementById("pirTotal").innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td>`;
   const match=Math.round(gh*1e6)===Math.round(ph*1e6);
   const mp=document.getElementById("matchPill"); mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad");
   document.getElementById("warnings").textContent=warns.length?"⚠️ "+[...new Set(warns)].join("\n⚠️ "):"";
@@ -319,8 +316,7 @@ function buildState(){
   return { v:1,
     project:{ name:document.getElementById("projName").value, start:document.getElementById("startDate").value,
       end:document.getElementById("endDate").value, duration:document.getElementById("durationWeeks").value,
-      cost:document.getElementById("costId").value,
-      totalHours:document.getElementById("totalHours").value },
+      cost:document.getElementById("costId").value },
     weeks:weeks.map(w=>w.label),
     rows:gridRows.map(r=>({name:r.name,role:r.role,weekly:r.weekly.map(v=>v===""?0:(parseFloat(v)||0))})),
     bpe:{...bpe} };
@@ -356,7 +352,8 @@ function distributePerson(personTotalDays, N){
   // never exceeding 4/week. If < 0.25/week on average, concentrates 0.25 on the
   // first weeks needed (rest 0).
   const wk=new Array(N).fill(0);
-  let quarters=Math.round(personTotalDays/MIN);   // number of 0.25 units
+  // FLOOR to 0.25 so a person never carries more hours than given (never exceed).
+  let quarters=Math.floor(personTotalDays/MIN + 1e-9);   // number of 0.25 units
   if(quarters<=0) return wk;
   const capQ=Math.round(MAXLINE/MIN);             // max 0.25 units per week (=16)
   if(quarters>=N){
@@ -409,7 +406,7 @@ function suggestAllocation(){
       peopleRows.push({name:`${code} ${p+1}`, role:CODE_TO_ROLE[code], weekly:wk.map(v=>v>0?fmtNum(v):"")});
       remaining-=take;
     }
-    if(remaining>0.001) warnings.push(`${code}: ${fmtNum(remaining*HOURS_PER_DAY)}h not allocated (duration too short).`);
+    if(remaining>0.001) warnings.push(`${code}: ${fmtNum(remaining*HOURS_PER_DAY)}h left over (duration too short).`);
   });
 
   renderHead();
@@ -435,7 +432,6 @@ function renderFromState(state){
   document.getElementById("endDate").value=state.project.end||"";
   document.getElementById("durationWeeks").value=state.project.duration||"";
   document.getElementById("costId").value=state.project.cost||"";
-  document.getElementById("totalHours").value=state.project.totalHours||"";
   Object.keys(bpe).forEach(k=>delete bpe[k]); Object.assign(bpe, state.bpe||{});
   // rebuild breakdown inputs with loaded values
   document.getElementById("rolesGrid").innerHTML=""; renderBreakdown();
@@ -467,13 +463,12 @@ function tryLoadFromURL(){
 function loadExample(){
   document.getElementById("projName").value="example";
   document.getElementById("startDate").value="2026-09-14";
-  document.getElementById("endDate").value="2026-10-12";
+  document.getElementById("durationWeeks").value="5";
   document.getElementById("costId").value="12-346-7";
-  document.getElementById("totalHours").value="400";
   document.getElementById("rolesGrid").innerHTML=""; Object.keys(bpe).forEach(k=>delete bpe[k]);
   Object.assign(bpe,{DM:0,PM:160,DS:160,RiskC:0,BA:80,ST:0}); renderBreakdown();
   document.querySelectorAll(".bpe-input").forEach(inp=>{ if(bpe[inp.dataset.code]!=null) inp.value=bpe[inp.dataset.code]; });
-  updateBreakdownPill();
+  updateBreakdownPill(); syncEndDate();
   suggestAllocation();   // demonstrates the suggestion based on duration
 }
 
@@ -495,13 +490,17 @@ function syncEndDate(){
 }
 document.getElementById("startDate").addEventListener("change",syncEndDate);
 document.getElementById("durationWeeks").addEventListener("input",syncEndDate);
-document.getElementById("totalHours").addEventListener("input",updateBreakdownPill);
 
+function nextMonday(from){
+  const d=new Date(from); const day=d.getDay();           // 0=Sun..6=Sat
+  const add=((8-day)%7)||7;                                // days until NEXT Monday (never today)
+  d.setDate(d.getDate()+add); d.setHours(0,0,0,0); return d;
+}
 (function(){
   renderBreakdown();
   if(tryLoadFromURL()) return;
-  const t=new Date();
-  document.getElementById("startDate").value=t.toISOString().slice(0,10);
+  const mon=nextMonday(new Date());
+  document.getElementById("startDate").value=`${mon.getFullYear()}-${pad(mon.getMonth()+1)}-${pad(mon.getDate())}`;
   document.getElementById("durationWeeks").value="8";
   syncEndDate();
   rebuildWeeks();   // builds week columns + a starting empty row
