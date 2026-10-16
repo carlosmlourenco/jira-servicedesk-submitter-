@@ -138,7 +138,10 @@ const ROLE_LABELS={DM:"DM",PM:"PM",DS:"DS",RiskC:"Risk C",BA:"BA",ST:"ST"};
 // Representative role name (for the people grid) per PIR code
 const CODE_TO_ROLE={DM:"Delivery Manager",PM:"Project Manager",DS:"Data Scientist",
   RiskC:"Risk Consultant",BA:"Business Analyst",ST:"ST"};
-const MAX_PEOPLE_PER_ROLE=3;
+// Max people per role. DM is always 1; PM is 1 by default (2 only when DS is at
+// its max of 3 people x 4 days/week); hands-on roles up to 3.
+const HARD_MAX_PEOPLE={DM:1,PM:2,DS:3,RiskC:3,BA:3,ST:3};
+const BASE_PEOPLE_CAP={DM:1,PM:1,DS:3,RiskC:3,BA:3,ST:3};
 
 let weeks=[];           // [{mon:Date,label:"dd/mm"}]
 let gridRows=[];        // [{name,role,weekly:[...]}]
@@ -353,8 +356,27 @@ function suggestAllocation(){
   PIR_ORDER.forEach(c=>{ const h=bpe[c]; if(h!=null&&!isNaN(h)&&h>0) days[c]=h/HOURS_PER_DAY; });
   if(Object.keys(days).length===0){ note.textContent="Fill the role breakdown (hours) first."; return; }
 
-  const maxDays=Math.max(...Object.values(days));
-  let N=Math.ceil(maxDays/(MAX_PEOPLE_PER_ROLE*MAXLINE));
+  // --- choose N (number of weeks) respecting per-role people caps ---
+  // N must let every role fit at <= 4 days/week within its people cap.
+  const ceilDiv=(a,b)=> a>0?Math.ceil(a/b):0;
+  const chooseN=(pmCap)=>{
+    let n=1;
+    Object.keys(days).forEach(code=>{
+      const cap = code==="PM"?pmCap : (code==="DM"?1:3);
+      n=Math.max(n, ceilDiv(days[code], cap*MAXLINE));
+    });
+    return n;
+  };
+  // step 1: N base ignoring PM (DM=1, hands-on=3)
+  const daysNoPM={}; Object.keys(days).forEach(c=>{ if(c!=="PM") daysNoPM[c]=days[c]; });
+  let N=1;
+  Object.keys(daysNoPM).forEach(code=>{ const cap=(code==="DM")?1:3; N=Math.max(N, ceilDiv(daysNoPM[code], cap*MAXLINE)); });
+  // step 2: is DS at its max (3 people x 4 days/week) at this N?  i.e. days_DS/N >= 12
+  const dsDays=days.DS||0;
+  const dsAtMax = dsDays>0 && (dsDays/N) >= (3*MAXLINE)-1e-9;
+  const pmCap = dsAtMax ? 2 : 1;   // PM only goes to 2 when DS is maxed out
+  // step 3: recompute N including the PM constraint with that capacity
+  N=Math.max(N, chooseN(pmCap));
   if(N<1) N=1;
 
   // build week window from start date (N weeks), set end date accordingly
@@ -371,9 +393,11 @@ function suggestAllocation(){
     if(!days[code]) return;
     const totalDays=days[code];
     const perWeekTotal=totalDays/N;                    // days/week to spread across people
+    const capPeople = (code==="PM") ? pmCap : HARD_MAX_PEOPLE[code];
     let nppl=Math.ceil(perWeekTotal/MAXLINE);
-    if(nppl>MAX_PEOPLE_PER_ROLE){ nppl=MAX_PEOPLE_PER_ROLE;
-      warnings.push(`${code}: needs more than ${MAX_PEOPLE_PER_ROLE} people — capped (will fall short).`); }
+    if(nppl<1) nppl=1;
+    if(nppl>capPeople){ nppl=capPeople;
+      warnings.push(`${code}: exceeds max ${capPeople} person(s) — capped (will fall short).`); }
     // per-person target days/week: fill to 4, remainder on the last person
     let remainingWeek=perWeekTotal;
     const targets=[];
