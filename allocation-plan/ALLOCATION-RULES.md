@@ -5,7 +5,7 @@
 > É a fonte de verdade legível por humanos — mantido em sincronia com o código em
 > `allocation-plan/pir.html`.
 >
-> Última atualização: 2026-09-14 (regras por role detalhadas; 13 roles)
+> Última atualização: 2026-09-14 (regras por role detalhadas; 13 roles; aviso de horas por alocar)
 
 ---
 
@@ -21,7 +21,7 @@
 | Semana completa | **5 dias (40 h)** | Base do cálculo de FTE. |
 | Duração | **N semanas** (campo *Duration*) | A alocação espalha-se de forma **plana** pelas N semanas, a partir da *Start date*. A *End date* é derivada. |
 | Nunca excede o breakdown | ✔️ | A sugestão nunca aloca **mais** horas do que o breakdown da role. |
-| Horas a mais não cabem | **não aloca** | Se houver demasiadas horas para as semanas/tetos disponíveis, as sobras **não são atribuídas** (sem erro). |
+| Horas a mais não cabem | **não aloca + avisa** | Se houver demasiadas horas para as semanas/tetos disponíveis, as sobras **não são atribuídas** e é mostrado um **aviso** na secção *People* a indicar a role e as horas por alocar. |
 
 ### Spread interno (como a sugestão distribui por pessoa)
 

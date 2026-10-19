@@ -609,7 +609,7 @@ function suggestAllocation(){
   document.getElementById("endDate").value=iso(endFri);
 
   const allIdx=Array.from({length:N},(_, i)=>i);
-  const peopleRows=[];
+  const peopleRows=[]; const leftovers=[];   // {role, hours} that could not be placed
   ROLES.forEach(role=>{
     let total=hoursByRole[role]; if(!total||total<MIN_H) return;
     const capPeople=maxPeople(role);
@@ -631,21 +631,32 @@ function suggestAllocation(){
     const capacity=perPersonMax*nppl;
     let assignable=Math.min(total, capacity);             // leftover (total-assignable) is dropped
     // split assignable across the people, each filled up to its own capacity
+    let placed=0;
     for(let p=0;p<nppl && assignable>=MIN_H; p++){
       const take=Math.min(assignable, perPersonMax);
       const wk=distributeHours(take, N, weekIdx, weekCapH);
-      if(wk.some(v=>v>0)){
+      const sum=wk.reduce((a,b)=>a+b,0); placed+=sum;
+      if(sum>0){
         peopleRows.push({role, alloc:"add", resource:"", status:"", area:"", sen:"",
           weekly:wk.map(v=>v>0?fmtNum(v):"")});
       }
       assignable-=take;
     }
+    // Hours of this role that could not be placed (over capacity or lost to the 2h step).
+    const unplaced=total-placed;
+    if(unplaced>=STEP_H-1e-9) leftovers.push({role, hours:unplaced});
   });
 
   renderHead();
   document.getElementById("gridBody").innerHTML="";
   peopleRows.forEach(r=>addRow(r));
   render();
+  // Surface leftovers as a warning in the People section (non-blocking).
+  if(leftovers.length){
+    const msg=leftovers.map(l=>`${l.role}: ${fmtNum(l.hours)}h not allocated (doesn't fit the ${N} week(s)/caps)`);
+    const w=document.getElementById("warnings");
+    w.textContent=(w.textContent?w.textContent+"\n":"")+"⚠️ "+msg.join("\n⚠️ ");
+  }
 
   const totH=ROLES.reduce((a,r)=>a+(hoursByRole[r]||0),0);
   note.style.color="var(--muted)";
