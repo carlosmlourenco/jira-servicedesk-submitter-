@@ -114,8 +114,10 @@
     <div class="roles-grid" id="rolesGrid"></div>
     <div class="toolbar">
       <span class="pill ok" id="breakdownPill">Total breakdown: — h</span>
+      <button class="btn btn-primary" id="suggest">✨ Suggest allocation</button>
       <span class="muted" style="font-size:12px">Hours per role. The suggestion never allocates more than these; it may fall slightly short.</span>
     </div>
+    <div class="muted" id="suggestNote" role="status" aria-live="polite" style="font-size:12px; margin-top:6px"></div>
   </fieldset>
 
   <fieldset>
@@ -164,13 +166,11 @@
   </fieldset>
 
   <div class="toolbar">
-    <button class="btn btn-primary" id="suggest">✨ Suggest allocation</button>
+    <button class="btn btn-ghost" id="loadExample">Load example</button>
+    <button class="btn btn-primary" id="download">⬇ Download CSV</button>
     <button class="btn btn-primary" id="generate" title="Generates a unique shareable link for this plan">🔗 Share</button>
     <button class="btn btn-primary" id="submitPir" title="Submit this PIR to the Jira Service Desk">📨 Submit PIR</button>
-    <button class="btn btn-primary" id="download">⬇ Download CSV</button>
-    <button class="btn btn-ghost" id="loadExample">Load example</button>
   </div>
-  <div class="muted" id="suggestNote" role="status" aria-live="polite" style="font-size:12px; margin-top:-6px"></div>
   <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
     <span class="pill ok" id="planIdPill">Plan ID: —</span>
     <button class="btn btn-ghost" id="copyLink">🔗 Copy shareable link</button>
