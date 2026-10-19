@@ -102,7 +102,7 @@
       </table>
     </div>
     <div class="toolbar">
-      <button class="btn btn-ghost" id="addRow">+ Add person</button>
+      <button class="btn btn-ghost" id="addRow" title="Adds a line for a new person">+ Add person</button>
       <span class="muted" style="font-size:12px">Weeks generated from the dates. Values in days/week (×8h).</span>
     </div>
     <div class="warn" id="warnings"></div>
@@ -231,7 +231,7 @@ function addRow(data){
   weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk";
     td.appendChild(weekInput(data.weekly?data.weekly[idx]:"")); tr.appendChild(td); });
   const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.className="btn btn-danger"; rm.textContent="✕";
-  rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{tr.remove();render();}); rmTd.appendChild(rm); tr.appendChild(rmTd);
+  rm.title="Removes the line"; rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{tr.remove();render();}); rmTd.appendChild(rm); tr.appendChild(rmTd);
   document.getElementById("gridBody").appendChild(tr);
 }
 function renderHead(){
@@ -239,15 +239,16 @@ function renderHead(){
   // fixed columns
   ["Name Suggestion","Days","Hours","FTE","ROLE"].forEach(c=>{
     const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
-  const mkBtn=(txt,title,fn)=>{ const b=document.createElement("button"); b.textContent=txt; b.title=title;
-    b.style.cssText="margin-left:4px;padding:0 6px;font-weight:700;border:none;border-radius:4px;cursor:pointer;background:var(--accent);color:var(--brand);line-height:1.4";
+  const mkBtn=(txt,title,fn,danger)=>{ const b=document.createElement("button"); b.textContent=txt; b.title=title;
+    const bg=danger?"#fff":"var(--accent)", fg=danger?"var(--bad)":"var(--brand)", bd=danger?"1px solid var(--bad)":"none";
+    b.style.cssText=`margin-left:4px;padding:0 6px;font-weight:700;border:${bd};border-radius:4px;cursor:pointer;background:${bg};color:${fg};line-height:1.4`;
     b.addEventListener("click",fn); return b; };
   // week columns; the LAST week column also carries the "-" (remove last week) button
   weeks.forEach((w,idx)=>{
     const th=document.createElement("th");
     if(idx===weeks.length-1){
       th.innerHTML=`<span style="vertical-align:middle">${w.label}</span>`;
-      th.appendChild(mkBtn("−","Remove last week",removeWeek));
+      th.appendChild(mkBtn("−","Removes a week",removeWeek,true));   // red
     } else {
       th.textContent=w.label;
     }
@@ -255,7 +256,7 @@ function renderHead(){
   });
   // last column (aligned with each row's ✕) carries the "+" (add week) button
   const lastTh=document.createElement("th");
-  lastTh.appendChild(mkBtn("+","Add a week",addWeek));
+  lastTh.appendChild(mkBtn("+","Add a week",addWeek));               // green
   head.appendChild(lastTh);
 }
 // Add a week column at the end (dates continue the weekly sequence).
