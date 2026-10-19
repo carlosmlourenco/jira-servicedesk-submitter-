@@ -121,12 +121,13 @@
       <span class="muted" style="font-size:12px">Hours per role. The suggestion never allocates more than these; it may fall slightly short.</span>
     </div>
     <div class="toolbar" style="justify-content:center">
+      <button class="btn btn-ghost" id="loadExample">Load example</button>
       <button class="btn btn-primary" id="suggest">✨ Suggest allocation</button>
     </div>
     <div class="muted" id="suggestNote" role="status" aria-live="polite" style="font-size:12px; margin-top:6px; text-align:center"></div>
   </fieldset>
 
-  <fieldset>
+  <fieldset id="peopleSection">
     <legend>People — weekly allocation (days/week)</legend>
     <details style="margin-bottom:12px">
       <summary style="cursor:pointer; font-size:13px; color:var(--brand); font-weight:600">Allocation conditions (how "Suggest" works)</summary>
@@ -156,7 +157,7 @@
     <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
   </fieldset>
 
-  <fieldset>
+  <fieldset id="pirSection">
     <legend>PIR — Time Logging &amp; BPE</legend>
     <div class="scroll">
       <table class="pir">
@@ -171,8 +172,7 @@
     </div>
   </fieldset>
 
-  <div class="toolbar" style="justify-content:center">
-    <button class="btn btn-ghost" id="loadExample">Load example</button>
+  <div class="toolbar" id="actionBar" style="justify-content:center">
     <button class="btn btn-primary" id="download">⬇ Download CSV</button>
     <button class="btn btn-primary" id="generate" title="Generates a unique shareable link for this plan">🔗 Share</button>
     <button class="btn btn-cta" id="submitPir" title="Submit this PIR to the Jira Service Desk">📨 Submit PIR</button>
@@ -652,14 +652,29 @@ function nextMonday(from){
   const add=((8-day)%7)||7;                                // days until NEXT Monday (never today)
   d.setDate(d.getDate()+add); d.setHours(0,0,0,0); return d;
 }
+// ---------- progressive reveal (online only) ----------
+// Online, keep the first impression simple: hide People/PIR/actions until the
+// user clicks Suggest (or Load example). Local (file://) shows everything.
+const IS_ONLINE = (location.protocol === "http:" || location.protocol === "https:");
+function setHidden(id, hidden){ const n=document.getElementById(id); if(n) n.style.display = hidden ? "none" : ""; }
+function hideDownstream(){
+  setHidden("peopleSection", true); setHidden("pirSection", true); setHidden("actionBar", true);
+}
+function revealAll(){
+  setHidden("peopleSection", false); setHidden("pirSection", false); setHidden("actionBar", false);
+}
+document.getElementById("suggest").addEventListener("click", revealAll);
+document.getElementById("loadExample").addEventListener("click", revealAll);
+
 (function(){
   renderBreakdown();
-  if(tryLoadFromURL()) return;
+  if(tryLoadFromURL()){ revealAll(); return; }   // shared link shows the full plan
   const mon=nextMonday(new Date());
   document.getElementById("startDate").value=`${mon.getFullYear()}-${pad(mon.getMonth()+1)}-${pad(mon.getDate())}`;
   document.getElementById("durationWeeks").value="8";
   syncEndDate();
   rebuildWeeks();   // builds week columns + a starting empty row
+  if(IS_ONLINE) hideDownstream();   // simpler first impression when served online
 })();
 </script>
 </body>
