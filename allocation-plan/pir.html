@@ -166,6 +166,7 @@
   <div class="toolbar">
     <button class="btn btn-primary" id="suggest">✨ Suggest allocation</button>
     <button class="btn btn-primary" id="generate" title="Generates a unique shareable link for this plan">🔗 Share</button>
+    <button class="btn btn-primary" id="submitPir" title="Submit this PIR to the Jira Service Desk">📨 Submit PIR</button>
     <button class="btn btn-primary" id="download">⬇ Download CSV</button>
     <button class="btn btn-ghost" id="loadExample">Load example</button>
   </div>
@@ -177,6 +178,7 @@
   </div>
   </main>
 
+<script src="submit-pir.js"></script>
 <script>
 // ---------- hamburger navigation menu (accessible) ----------
 (function(){
@@ -604,6 +606,23 @@ document.getElementById("generate").addEventListener("click",generate);
 document.getElementById("download").addEventListener("click",download);
 document.getElementById("copyLink").addEventListener("click",copyShareLink);
 document.getElementById("loadExample").addEventListener("click",loadExample);
+
+// ---------- Submit PIR to the Jira Service Desk ----------
+function submitPir(){
+  // make sure we have an up-to-date shareable link (the justification)
+  generate();
+  const proj=(document.getElementById("projName").value||"").trim()||"(unnamed project)";
+  let totalH=0; PIR_ORDER.forEach(c=>{ if(bpe[c]!=null&&!isNaN(bpe[c])) totalH+=bpe[c]; });
+  const url=(document.getElementById("copyLink").dataset.url)||location.href;
+  PirSubmit.open({
+    summary: `PIR: ${proj} — ${fmtNum(totalH)}h`,
+    justification: url,
+    forecast: "#",
+    csv: toCSV(),
+    filename: (slug(proj)||"pir")+"-pir.csv",
+  });
+}
+document.getElementById("submitPir").addEventListener("click",submitPir);
 // Keep the read-only end date in sync with start + duration (visual feedback).
 function syncEndDate(){
   const start=parseISO(document.getElementById("startDate").value);
