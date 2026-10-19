@@ -224,7 +224,7 @@ function addRow(data){
   data=data||{};
   const tr=document.createElement("tr");
   const nameTd=document.createElement("td"); nameTd.className="meta";
-  const nameI=document.createElement("input"); nameI.placeholder="Nome"; nameI.value=data.name||""; nameI.addEventListener("input",render);
+  const nameI=document.createElement("input"); nameI.placeholder="Name"; nameI.value=data.name||""; nameI.addEventListener("input",render);
   nameTd.appendChild(nameI); tr.appendChild(nameTd);
   ["days","hours","fte"].forEach(k=>{const td=document.createElement("td");td.className="calc "+k;td.textContent="0";tr.appendChild(td);});
   const roleTd=document.createElement("td"); roleTd.className="meta"; roleTd.appendChild(makeRoleSelect(data.role)); tr.appendChild(roleTd);
@@ -236,8 +236,48 @@ function addRow(data){
 }
 function renderHead(){
   const head=document.getElementById("gridHead"); head.innerHTML="";
-  ["Name Suggestion","Days","Hours","FTE","ROLE",...weeks.map(w=>w.label),""].forEach(c=>{
+  // fixed columns
+  ["Name Suggestion","Days","Hours","FTE","ROLE"].forEach(c=>{
     const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
+  // week columns; the LAST one carries the + / - buttons to add/remove weeks
+  weeks.forEach((w,idx)=>{
+    const th=document.createElement("th");
+    if(idx===weeks.length-1){
+      th.innerHTML=`<span style="vertical-align:middle">${w.label}</span>`;
+      const mk=(txt,title,fn)=>{ const b=document.createElement("button"); b.textContent=txt; b.title=title;
+        b.style.cssText="margin-left:4px;padding:0 5px;font-weight:700;border:none;border-radius:4px;cursor:pointer;background:var(--accent);color:var(--brand);line-height:1.4";
+        b.addEventListener("click",fn); return b; };
+      th.appendChild(mk("+","Add a week",addWeek));
+      th.appendChild(mk("−","Remove last week",removeWeek));
+    } else {
+      th.textContent=w.label;
+    }
+    head.appendChild(th);
+  });
+  const blank=document.createElement("th"); blank.textContent=""; head.appendChild(blank);
+}
+// Add a week column at the end (dates continue the weekly sequence).
+function addWeek(){
+  const last=weeks.length?weeks[weeks.length-1].mon:mondayOf(parseISO(document.getElementById("startDate").value)||new Date());
+  const next=new Date(last); next.setDate(next.getDate()+7);
+  const existing=collect();
+  weeks.push({mon:next, label:lbl(next)});
+  document.getElementById("durationWeeks").value=weeks.length;  // keep Duration in sync
+  renderHead();
+  document.getElementById("gridBody").innerHTML="";
+  existing.forEach(r=>addRow(r));          // new week cell starts empty for each person
+  syncEndDate(); render();
+}
+// Remove the last week column (keeps at least 1 week).
+function removeWeek(){
+  if(weeks.length<=1) return;
+  const existing=collect().map(r=>({...r, weekly:r.weekly.slice(0,weeks.length-1)}));
+  weeks.pop();
+  document.getElementById("durationWeeks").value=weeks.length;
+  renderHead();
+  document.getElementById("gridBody").innerHTML="";
+  existing.forEach(r=>addRow(r));
+  syncEndDate(); render();
 }
 function collect(){
   const rows=[];
