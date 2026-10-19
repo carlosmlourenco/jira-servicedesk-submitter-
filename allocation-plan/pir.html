@@ -608,6 +608,10 @@ document.getElementById("copyLink").addEventListener("click",copyShareLink);
 document.getElementById("loadExample").addEventListener("click",loadExample);
 
 // ---------- Submit PIR to the Jira Service Desk ----------
+// Jira portal URL used by the local (file://) fallback to open the form.
+// Configurable: change here, or set window.PIR_PORTAL_URL before this script.
+const PIR_PORTAL_URL = window.PIR_PORTAL_URL
+  || "https://fdz.atlassian.net/servicedesk/customer/portal/2065/group/2232/create/2866";
 function submitPir(){
   // make sure we have an up-to-date shareable link (the justification)
   generate();
@@ -620,6 +624,7 @@ function submitPir(){
     forecast: "#",
     csv: toCSV(),
     filename: (slug(proj)||"pir")+"-pir.csv",
+    portalUrl: PIR_PORTAL_URL,
   });
 }
 document.getElementById("submitPir").addEventListener("click",submitPir);

@@ -8,7 +8,8 @@
  *     justification: "https://.../#id=...",   // the unique shareable URL
  *     forecast:      "#",                       // placeholder for now
  *     csv:           "<the generated CSV text>",
- *     filename:      "project-pir.csv"
+ *     filename:      "project-pir.csv",
+ *     portalUrl:     "https://.../create/2866"  // used by the file:// fallback
  *   });
  *
  * It opens a modal with those fields PRE-FILLED (editable), checks auth via
@@ -123,9 +124,27 @@
     fSummary.focus();
 
     if (!hasBackend) {
-      status.className = "pir-status pir-bad";
-      status.textContent = "Open via the local server (server/server.py) to submit.";
-      submitBtn.disabled = true;
+      // Local (file://) fallback: no backend to submit through. Instead, offer
+      // to open the Jira portal (user is already signed in there) and download
+      // the CSV to attach, with the fields above ready to copy.
+      submitBtn.remove();
+      status.className = "pir-status";
+      status.textContent = "Local mode: open the portal and paste these fields.";
+      const portal = data.portalUrl || "";
+      if (portal) {
+        const openBtn = el("button", { className: "pir-btn pir-primary", type: "button" }, ["Open Jira portal"]);
+        openBtn.onclick = () => window.open(portal, "_blank", "noopener");
+        footer.insertBefore(openBtn, cancelBtn);
+      }
+      if (data.csv) {
+        const dlBtn = el("button", { className: "pir-btn pir-ghost", type: "button" }, ["Download CSV"]);
+        dlBtn.onclick = () => {
+          const b = new Blob([data.csv], { type: "text/csv" });
+          const a = el("a", { href: URL.createObjectURL(b), download: fFile.value || "allocation-plan.csv" });
+          document.body.appendChild(a); a.click(); a.remove();
+        };
+        footer.insertBefore(dlBtn, cancelBtn);
+      }
       return;
     }
 
