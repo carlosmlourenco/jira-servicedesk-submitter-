@@ -81,6 +81,19 @@
 
   <fieldset>
     <legend>People — weekly allocation (days/week)</legend>
+    <details style="margin-bottom:12px">
+      <summary style="cursor:pointer; font-size:13px; color:var(--brand); font-weight:600">Allocation conditions (how "Suggest" works)</summary>
+      <ul style="font-size:12px; color:var(--muted); margin:8px 0 0; padding-left:18px; line-height:1.6">
+        <li>Allocation starts on the <b>Start date</b> and spans the <b>Duration (weeks)</b> you set. End date is derived from these.</li>
+        <li>Weekly allocation per person is <b>flat</b>, from <b>0.25</b> (2h/week) up to <b>4</b> days/week (32h/week), in <b>0.25</b> steps.</li>
+        <li>One person works at most <b>4 days/week</b>. If a role needs more, it is split across multiple people.</li>
+        <li>Max people per role: <b>Delivery Manager = 1</b>, <b>Project Manager = 1</b> (2 only when Data Science is maxed at 3 people × 4 days/week), <b>hands-on roles = 3</b>.</li>
+        <li>The suggestion <b>never allocates more</b> hours than the breakdown — it matches exactly or falls slightly short (rounded down to 0.25).</li>
+        <li><b>Too short</b> a duration (doesn't fit even at max people) → allocates the maximum and warns about leftover hours.</li>
+        <li><b>Too long</b> a duration → a person drops to the 0.25 minimum, placed on the first weeks needed (later weeks stay empty).</li>
+        <li><b>Total Values Match?</b> is TRUE only when the allocated hours equal the breakdown for <b>every</b> role.</li>
+      </ul>
+    </details>
     <div class="scroll">
       <table id="grid">
         <thead><tr id="gridHead"></tr></thead>
