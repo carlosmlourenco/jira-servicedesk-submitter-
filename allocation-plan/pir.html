@@ -55,22 +55,34 @@
   .plan-row { display:grid; grid-template-columns:1.6fr 1.4fr auto; gap:8px; align-items:end; margin-bottom:8px; }
   .plan-row input, .plan-row select { width:100%; }
   code { background:var(--grey); padding:1px 5px; border-radius:4px; color:var(--brand); }
+  /* Accessibility: clear keyboard focus on every interactive element */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+    outline:3px solid var(--brand); outline-offset:2px; border-radius:4px;
+  }
+  /* visually hidden but available to screen readers */
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  /* skip link: hidden until focused */
+  .skip-link { position:absolute; left:8px; top:-40px; background:var(--brand); color:#fff;
+    padding:8px 12px; border-radius:6px; z-index:100; transition:top .15s; }
+  .skip-link:focus { top:8px; }
 </style>
 </head>
 <body>
-  <div class="brandbar"><span class="logo">P</span><span class="name">Resource Planner</span><span class="tag">PIR</span></div>
-  <div class="wrap">
-  <div id="viewBanner" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
+  <a href="#main" class="skip-link">Skip to main content</a>
+  <div class="brandbar"><span class="logo" aria-hidden="true">P</span><span class="name">Resource Planner</span><span class="tag">PIR</span></div>
+  <main id="main" class="wrap">
+  <div id="viewBanner" role="status" aria-live="polite" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
   <h1>PIR — Project Initiation Request</h1>
   <div class="sub">Define the project, the total hours and the breakdown per role. Add the people and their weekly allocation. Generate the CSV and a unique shareable link.</div>
 
   <fieldset>
     <legend>Project</legend>
     <div class="hdr-grid">
-      <div><label>Project name</label><input id="projName" placeholder="project name"></div>
-      <div><label>Start date</label><input id="startDate" type="date"></div>
-      <div><label>Duration (weeks)</label><input id="durationWeeks" type="number" step="1" min="1" placeholder="e.g. 8"></div>
-      <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
+      <div><label for="projName">Project name</label><input id="projName" placeholder="project name"></div>
+      <div><label for="startDate">Start date</label><input id="startDate" type="date"></div>
+      <div><label for="durationWeeks">Duration (weeks)</label><input id="durationWeeks" type="number" step="1" min="1" placeholder="e.g. 8"></div>
+      <div><label for="costId">Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
       <input id="endDate" type="hidden">
     </div>
   </fieldset>
@@ -101,6 +113,7 @@
     </details>
     <div class="scroll">
       <table id="grid">
+        <caption class="sr-only">People and their weekly day allocation</caption>
         <thead><tr id="gridHead"></tr></thead>
         <tbody id="gridBody"></tbody>
         <tfoot><tr id="gridTotal"></tr></tfoot>
@@ -110,20 +123,21 @@
       <button class="btn btn-ghost" id="addRow" title="Adds a line for a new person">+ Add person</button>
       <span class="muted" style="font-size:12px">Weeks generated from the dates. Values in days/week (×8h).</span>
     </div>
-    <div class="warn" id="warnings"></div>
+    <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
   </fieldset>
 
   <fieldset>
     <legend>PIR — Time Logging &amp; BPE</legend>
     <div class="scroll">
       <table class="pir">
-        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours per role</th></tr></thead>
+        <caption class="sr-only">Planned days and hours per role, with the breakdown (BPE) per role</caption>
+        <thead><tr><th scope="col">Code</th><th scope="col">Days</th><th scope="col">Hours</th><th scope="col">BPE Hours per role</th></tr></thead>
         <tbody id="pirBody"></tbody>
         <tfoot><tr id="pirTotal"></tr></tfoot>
       </table>
     </div>
     <div class="toolbar">
-      <span id="matchPill" class="pill ok">Total Values Match? —</span>
+      <span id="matchPill" class="pill ok" role="status" aria-live="polite">Total Values Match? —</span>
     </div>
   </fieldset>
 
@@ -133,13 +147,13 @@
     <button class="btn btn-primary" id="download">⬇ Download CSV</button>
     <button class="btn btn-ghost" id="loadExample">Load example</button>
   </div>
-  <div class="muted" id="suggestNote" style="font-size:12px; margin-top:-6px"></div>
+  <div class="muted" id="suggestNote" role="status" aria-live="polite" style="font-size:12px; margin-top:-6px"></div>
   <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
     <span class="pill ok" id="planIdPill">Plan ID: —</span>
     <button class="btn btn-ghost" id="copyLink">🔗 Copy shareable link</button>
-    <span class="muted" id="shareStatus" style="font-size:12px"></span>
+    <span class="muted" id="shareStatus" role="status" aria-live="polite" style="font-size:12px"></span>
   </div>
-  </div><!-- /.wrap -->
+  </main>
 
 <script>
 const HOURS_PER_DAY=8, FULL_WEEK=5, MIN=0.25, MAXLINE=4;
@@ -198,9 +212,11 @@ function renderBreakdown(){
   if(host.childElementCount===0){
     PIR_ORDER.forEach(code=>{
       const div=document.createElement("div");
-      div.innerHTML=`<label>${ROLE_LABELS[code]} — hours</label>`;
+      const inpId="bpe-"+code;
+      div.innerHTML=`<label for="${inpId}">${ROLE_LABELS[code]} — hours</label>`;
       const inp=document.createElement("input"); inp.type="number"; inp.step="1"; inp.min="0";
-      inp.dataset.code=code; inp.className="bpe-input";
+      inp.id=inpId; inp.dataset.code=code; inp.className="bpe-input";
+      inp.setAttribute("aria-label", ROLE_LABELS[code]+" hours");
       inp.addEventListener("input",()=>{ const v=parseFloat(inp.value);
         if(inp.value==="") delete bpe[code]; else bpe[code]=v; updateBreakdownPill(); render(); });
       div.appendChild(inp); host.appendChild(div);
@@ -217,40 +233,41 @@ function updateBreakdownPill(){
 
 // ---------- people grid ----------
 function makeRoleSelect(val){
-  const s=document.createElement("select");
+  const s=document.createElement("select"); s.setAttribute("aria-label","Role");
   const b=document.createElement("option"); b.value=""; b.textContent="—"; s.appendChild(b);
   ROLES.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;if(r===val)o.selected=true;s.appendChild(o);});
   s.addEventListener("change",render); return s;
 }
-function weekInput(v){ const i=document.createElement("input"); i.type="number"; i.step="0.25"; i.min="0"; i.max="4";
+function weekInput(v,label){ const i=document.createElement("input"); i.type="number"; i.step="0.25"; i.min="0"; i.max="4";
+  if(label) i.setAttribute("aria-label",label);
   if(v!=null&&v!=="") i.value=v; i.addEventListener("input",render); return i; }
 
 function addRow(data){
   data=data||{};
   const tr=document.createElement("tr");
   const nameTd=document.createElement("td"); nameTd.className="meta";
-  const nameI=document.createElement("input"); nameI.placeholder="Name"; nameI.value=data.name||""; nameI.addEventListener("input",render);
+  const nameI=document.createElement("input"); nameI.placeholder="Name"; nameI.setAttribute("aria-label","Person name"); nameI.value=data.name||""; nameI.addEventListener("input",render);
   nameTd.appendChild(nameI); tr.appendChild(nameTd);
-  ["days","hours","fte"].forEach(k=>{const td=document.createElement("td");td.className="calc "+k;td.textContent="0";tr.appendChild(td);});
+  [["days","Days"],["hours","Hours"],["fte","FTE"]].forEach(([k])=>{const td=document.createElement("td");td.className="calc "+k;td.textContent="0";tr.appendChild(td);});
   const roleTd=document.createElement("td"); roleTd.className="meta"; roleTd.appendChild(makeRoleSelect(data.role)); tr.appendChild(roleTd);
   weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk";
-    td.appendChild(weekInput(data.weekly?data.weekly[idx]:"")); tr.appendChild(td); });
-  const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.className="btn btn-danger"; rm.textContent="✕";
-  rm.title="Removes the line"; rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{tr.remove();render();}); rmTd.appendChild(rm); tr.appendChild(rmTd);
+    td.appendChild(weekInput(data.weekly?data.weekly[idx]:"", `Week ${w.label} days`)); tr.appendChild(td); });
+  const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.type="button"; rm.className="btn btn-danger"; rm.textContent="✕";
+  rm.title="Removes the line"; rm.setAttribute("aria-label","Remove this person"); rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{tr.remove();render();}); rmTd.appendChild(rm); tr.appendChild(rmTd);
   document.getElementById("gridBody").appendChild(tr);
 }
 function renderHead(){
   const head=document.getElementById("gridHead"); head.innerHTML="";
   // fixed columns
   ["Name Suggestion","Days","Hours","FTE","ROLE"].forEach(c=>{
-    const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
-  const mkBtn=(txt,title,fn,danger)=>{ const b=document.createElement("button"); b.textContent=txt; b.title=title;
+    const th=document.createElement("th"); th.scope="col"; th.textContent=c; head.appendChild(th); });
+  const mkBtn=(txt,title,fn,danger)=>{ const b=document.createElement("button"); b.type="button"; b.textContent=txt; b.title=title; b.setAttribute("aria-label",title);
     if(danger){ b.className="btn btn-danger"; b.style.cssText="margin-left:4px;padding:2px 8px"; }  // same CSS as the ✕
     else { b.style.cssText="margin-left:4px;padding:0 6px;font-weight:700;border:none;border-radius:4px;cursor:pointer;background:var(--accent);color:var(--brand);line-height:1.4"; }
     b.addEventListener("click",fn); return b; };
   // week columns; the LAST week column also carries the "-" (remove last week) button
   weeks.forEach((w,idx)=>{
-    const th=document.createElement("th");
+    const th=document.createElement("th"); th.scope="col";
     if(idx===weeks.length-1){
       th.innerHTML=`<span style="vertical-align:middle">${w.label}</span>`;
       th.appendChild(mkBtn("−","Removes a week",removeWeek,true));   // red
@@ -260,7 +277,7 @@ function renderHead(){
     head.appendChild(th);
   });
   // last column (aligned with each row's ✕) carries the "+" (add week) button
-  const lastTh=document.createElement("th");
+  const lastTh=document.createElement("th"); lastTh.scope="col";
   lastTh.appendChild(mkBtn("+","Add a week",addWeek));               // green
   head.appendChild(lastTh);
 }

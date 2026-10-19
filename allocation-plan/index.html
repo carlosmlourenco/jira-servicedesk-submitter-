@@ -57,11 +57,21 @@
   details { margin-bottom:16px; }
   summary { cursor:pointer; font-size:13px; color:var(--brand); font-weight:600; }
   code { background:var(--grey); padding:1px 5px; border-radius:4px; color:var(--brand); }
+  /* Accessibility */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+    outline:3px solid var(--brand); outline-offset:2px; border-radius:4px;
+  }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .skip-link { position:absolute; left:8px; top:-40px; background:var(--brand); color:#fff;
+    padding:8px 12px; border-radius:6px; z-index:100; transition:top .15s; }
+  .skip-link:focus { top:8px; }
 </style>
 </head>
 <body>
-  <div class="brandbar"><span class="logo">P</span><span class="name">Resource Planner</span><span class="tag">Allocation</span></div>
-  <div class="wrap">
+  <a href="#main" class="skip-link">Skip to main content</a>
+  <div class="brandbar"><span class="logo" aria-hidden="true">P</span><span class="name">Resource Planner</span><span class="tag">Allocation</span></div>
+  <main id="main" class="wrap">
   <h1>Allocation Plan Builder</h1>
   <div class="sub">Fill the header and resource grid; totals compute live. Download a CSV in the CR template format. Everything runs locally in your browser.</div>
 
@@ -79,10 +89,10 @@
   <fieldset>
     <legend>Project</legend>
     <div class="hdr-grid">
-      <div><label>Project name</label><input id="projName" placeholder="twint" style="width:100%"></div>
-      <div><label>Start date</label><input id="startDate" type="date" style="width:100%"></div>
-      <div><label>End date</label><input id="endDate" type="date" style="width:100%"></div>
-      <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7" style="width:100%"></div>
+      <div><label for="projName">Project name</label><input id="projName" placeholder="twint" style="width:100%"></div>
+      <div><label for="startDate">Start date</label><input id="startDate" type="date" style="width:100%"></div>
+      <div><label for="endDate">End date</label><input id="endDate" type="date" style="width:100%"></div>
+      <div><label for="costId">Cost Tracker ID</label><input id="costId" placeholder="12-346-7" style="width:100%"></div>
     </div>
   </fieldset>
 
@@ -90,29 +100,31 @@
     <legend>Resources — weekly allocation (days/week)</legend>
     <div class="scroll">
       <table id="grid">
+        <caption class="sr-only">Resources and their weekly day allocation</caption>
         <thead><tr id="gridHead"></tr></thead>
         <tbody id="gridBody"></tbody>
         <tfoot><tr id="gridTotal"></tr></tfoot>
       </table>
     </div>
     <div class="toolbar">
-      <button class="btn btn-ghost" id="addRow">+ Add resource</button>
+      <button class="btn btn-ghost" id="addRow" title="Adds a line for a new resource">+ Add resource</button>
       <span class="muted" style="font-size:12px">Weeks are generated from the start/end dates.</span>
     </div>
-    <div class="warn" id="warnings"></div>
+    <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
   </fieldset>
 
   <fieldset>
     <legend>PIR — Time Logging &amp; BPE</legend>
     <div class="scroll">
       <table class="pir">
-        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours (input)</th><th>AI Comment</th></tr></thead>
+        <caption class="sr-only">Planned days and hours per role versus the BPE input</caption>
+        <thead><tr><th scope="col">Code</th><th scope="col">Days</th><th scope="col">Hours</th><th scope="col">BPE Hours (input)</th><th scope="col">AI Comment</th></tr></thead>
         <tbody id="pirBody"></tbody>
         <tfoot><tr id="pirTotal"></tr></tfoot>
       </table>
     </div>
     <div class="toolbar">
-      <span id="matchPill" class="pill ok">Total Values Match? —</span>
+      <span id="matchPill" class="pill ok" role="status" aria-live="polite">Total Values Match? —</span>
     </div>
   </fieldset>
 
@@ -120,7 +132,7 @@
     <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
     <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
   </div>
-  </div><!-- /.wrap -->
+  </main>
 
 <script>
 const HOURS_PER_DAY = 8, FULL_WEEK = 5, MIN=0.25, MAXLINE=4;
@@ -150,15 +162,15 @@ function buildWeeks(start, end){
 function fmtNum(n){ if(n===null||isNaN(n)) return ""; return (n%1===0)? String(n): (Math.round(n*100)/100).toString(); }
 
 function makeRoleSelect(val){
-  const s=document.createElement("select");
+  const s=document.createElement("select"); s.setAttribute("aria-label","Role");
   const blank=document.createElement("option"); blank.value=""; blank.textContent="—"; s.appendChild(blank);
   ROLES.forEach(r=>{ const o=document.createElement("option"); o.value=r; o.textContent=r; if(r===val)o.selected=true; s.appendChild(o); });
   s.addEventListener("change", recompute);
   return s;
 }
-function textCell(ph){ const i=document.createElement("input"); i.placeholder=ph||""; i.addEventListener("input",recompute); return i; }
-function weekInput(){ const i=document.createElement("input"); i.type="number"; i.step="0.25"; i.min="0"; i.max="4";
-  i.addEventListener("input",recompute); return i; }
+function textCell(ph){ const i=document.createElement("input"); i.placeholder=ph||""; if(ph)i.setAttribute("aria-label",ph); i.addEventListener("input",recompute); return i; }
+function weekInput(label){ const i=document.createElement("input"); i.type="number"; i.step="0.25"; i.min="0"; i.max="4";
+  if(label)i.setAttribute("aria-label",label); i.addEventListener("input",recompute); return i; }
 
 function addRow(data){
   data=data||{};
@@ -172,11 +184,11 @@ function addRow(data){
   const areaTd=document.createElement("td"); areaTd.className="meta"; const areaI=textCell("Area"); areaI.value=data.area||""; areaTd.appendChild(areaI); tr.appendChild(areaTd);
   const senTd=document.createElement("td"); senTd.className="meta"; const senI=textCell("Seniority"); senI.value=data.sen||""; senTd.appendChild(senI); tr.appendChild(senTd);
   // week cells
-  weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk"; const wi=weekInput();
+  weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk"; const wi=weekInput(`Week ${w} days`);
     if(data.weekly&&data.weekly[idx]!=null&&data.weekly[idx]!=="") wi.value=data.weekly[idx]; td.appendChild(wi); tr.appendChild(td); });
   // remove btn
-  const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.className="btn btn-danger"; rm.textContent="✕";
-  rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{ tr.remove(); recompute(); }); rmTd.appendChild(rm); tr.appendChild(rmTd);
+  const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.type="button"; rm.className="btn btn-danger"; rm.textContent="✕";
+  rm.title="Removes the line"; rm.setAttribute("aria-label","Remove this resource"); rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{ tr.remove(); recompute(); }); rmTd.appendChild(rm); tr.appendChild(rmTd);
   document.getElementById("gridBody").appendChild(tr);
 }
 
@@ -184,7 +196,7 @@ function renderHead(){
   const head=document.getElementById("gridHead");
   head.innerHTML="";
   const cols=["Name Suggestion","Days","Hours","FTE","ROLE","AREA","SENIORITY",...weeks,""];
-  cols.forEach(c=>{ const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
+  cols.forEach(c=>{ const th=document.createElement("th"); th.scope="col"; th.textContent=c; head.appendChild(th); });
 }
 
 function rebuildWeeks(){
@@ -252,7 +264,7 @@ function recompute(){
     if(b!=null&&!isNaN(b)){ if(h<b)comment="hours missing"; else if(h>b)comment="exceed"; }
     const tr=document.createElement("tr");
     tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td>`;
-    const bTd=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px";
+    const bTd=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px"; bi.setAttribute("aria-label", code+" BPE hours");
     if(b!=null) bi.value=b; bi.addEventListener("input",()=>{ const v=parseFloat(bi.value); if(bi.value==="")delete bpe[code]; else bpe[code]=v; recompute(); });
     bTd.appendChild(bi); tr.appendChild(bTd);
     const cTd=document.createElement("td"); cTd.textContent=comment; if(comment)cTd.style.color= comment==="exceed"?"#c0392b":"#b8860b"; tr.appendChild(cTd);

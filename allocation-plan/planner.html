@@ -60,23 +60,33 @@
   .legendbar { font-size:11px; color:var(--muted); margin-top:6px; }
   .sw { display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:middle; margin:0 3px 0 10px; border:1px solid var(--line); }
   code { background:var(--grey); padding:1px 5px; border-radius:4px; color:var(--brand); }
+  /* Accessibility */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+    outline:3px solid var(--brand); outline-offset:2px; border-radius:4px;
+  }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .skip-link { position:absolute; left:8px; top:-40px; background:var(--brand); color:#fff;
+    padding:8px 12px; border-radius:6px; z-index:100; transition:top .15s; }
+  .skip-link:focus { top:8px; }
 </style>
 </head>
 <body>
-  <div class="brandbar"><span class="logo">P</span><span class="name">Resource Planner</span><span class="tag">Allocation</span></div>
-  <div class="wrap">
-  <div id="viewBanner" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
+  <a href="#main" class="skip-link">Skip to main content</a>
+  <div class="brandbar"><span class="logo" aria-hidden="true">P</span><span class="name">Resource Planner</span><span class="tag">Allocation</span></div>
+  <main id="main" class="wrap">
+  <div id="viewBanner" role="status" aria-live="polite" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
   <h1>Allocation Auto-Planner</h1>
   <div class="sub">Declare total hours, roles, capacity, city and PTO. The planner spreads the allocation across the timeline until hours run out, reducing weeks for Portugal holidays &amp; PTO, and auto-covering PTO with a same-role teammate.</div>
 
   <fieldset>
     <legend>Project &amp; budget</legend>
     <div class="hdr-grid">
-      <div><label>Project name</label><input id="projName" placeholder="twint"></div>
-      <div><label>Start date</label><input id="startDate" type="date"></div>
-      <div><label>End date</label><input id="endDate" type="date"></div>
-      <div><label>Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
-      <div><label>Total hours to allocate (cap)</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
+      <div><label for="projName">Project name</label><input id="projName" placeholder="twint"></div>
+      <div><label for="startDate">Start date</label><input id="startDate" type="date"></div>
+      <div><label for="endDate">End date</label><input id="endDate" type="date"></div>
+      <div><label for="costId">Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
+      <div><label for="totalHours">Total hours to allocate (cap)</label><input id="totalHours" type="number" step="1" placeholder="400"></div>
     </div>
   </fieldset>
 
@@ -88,10 +98,10 @@
       <button class="btn btn-primary" id="generate">⚙ Generate allocation</button>
     </div>
     <div class="toolbar" style="border-top:1px dashed var(--line); padding-top:12px">
-      <label style="margin:0; font-weight:600; color:#3a4656">📅 Calendar (.ics):</label>
+      <label for="icsFile" style="margin:0; font-weight:600; color:#3a4656">📅 Calendar (.ics):</label>
       <input type="file" id="icsFile" accept=".ics,text/calendar" style="border:none">
       <button class="btn btn-ghost" id="fillPto">Fill PTO from calendar</button>
-      <span class="muted" id="icsStatus" style="font-size:12px"></span>
+      <span class="muted" id="icsStatus" role="status" aria-live="polite" style="font-size:12px"></span>
     </div>
     <div class="muted" style="font-size:12px">
       Download your HiBob calendar once (it exports an <code>.ics</code>), load it above, then
@@ -102,13 +112,14 @@
       "Covers for" = pick a same-role teammate whose PTO weeks this person fills.
       PM is secondary: it only allocates 0.25/week while a hands-on role is working.
     </div>
-    <div class="note" id="planNote"></div>
+    <div class="note" id="planNote" role="status" aria-live="polite"></div>
   </fieldset>
 
   <fieldset>
     <legend>Generated grid</legend>
     <div class="scroll">
       <table id="grid">
+        <caption class="sr-only">Generated weekly allocation per resource</caption>
         <thead><tr id="gridHead"></tr></thead>
         <tbody id="gridBody"></tbody>
         <tfoot><tr id="gridTotal"></tr></tfoot>
@@ -116,11 +127,11 @@
     </div>
     <div class="legendbar"><span class="sw" style="background:#fff4e0"></span>holiday-reduced week
       <span class="sw" style="background:#fde8ec"></span>PTO-reduced week</div>
-    <div class="warn" id="warnings"></div>
+    <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
     <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
       <span class="pill ok" id="planIdPill">Plan ID: —</span>
       <button class="btn btn-ghost" id="copyLink">🔗 Copy shareable link</button>
-      <span class="muted" id="shareStatus" style="font-size:12px"></span>
+      <span class="muted" id="shareStatus" role="status" aria-live="polite" style="font-size:12px"></span>
     </div>
   </fieldset>
 
@@ -128,20 +139,21 @@
     <legend>PIR — Time Logging &amp; BPE</legend>
     <div class="scroll">
       <table class="pir">
-        <thead><tr><th>Code</th><th>Days</th><th>Hours</th><th>BPE Hours (input)</th><th>AI Comment</th></tr></thead>
+        <caption class="sr-only">Planned days and hours per role versus the BPE input</caption>
+        <thead><tr><th scope="col">Code</th><th scope="col">Days</th><th scope="col">Hours</th><th scope="col">BPE Hours (input)</th><th scope="col">AI Comment</th></tr></thead>
         <tbody id="pirBody"></tbody>
         <tfoot><tr id="pirTotal"></tr></tfoot>
       </table>
     </div>
-    <div class="toolbar"><span id="matchPill" class="pill ok">Total Values Match? —</span>
-      <span id="capPill" class="pill ok">Allocated — / — h</span></div>
+    <div class="toolbar"><span id="matchPill" class="pill ok" role="status" aria-live="polite">Total Values Match? —</span>
+      <span id="capPill" class="pill ok" role="status" aria-live="polite">Allocated — / — h</span></div>
   </fieldset>
 
   <div class="toolbar">
     <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
     <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
   </div>
-  </div><!-- /.wrap -->
+  </main>
 
 <script>
 const HOURS_PER_DAY=8, FULL_WEEK=5, MIN=0.25, MAXLINE=4, PM_RATE=0.25;
@@ -239,13 +251,13 @@ function addPlanRow(d){
   d=d||{};
   const wrap=document.createElement("div"); wrap.className="plan-row";
   wrap.innerHTML=`
-    <div><label>Name</label><input class="p-name" value="${d.name||""}"></div>
-    <div><label>Role</label><select class="p-role">${["",...ROLES].map(r=>`<option ${r===d.role?"selected":""}>${r}</option>`).join("")}</select></div>
-    <div><label>Capacity (d/wk)</label><input class="p-cap" type="number" step="0.25" min="0.25" max="4" value="${d.cap!=null?d.cap:""}"></div>
-    <div><label>City</label><select class="p-city">${CITIES.map(c=>`<option ${c===d.city?"selected":""}>${c}</option>`).join("")}</select></div>
-    <div><label>PTO ranges</label><input class="p-pto" placeholder="18/09/2026-25/09/2026" value="${d.pto||""}"></div>
-    <div><label>Backup (name)</label><input class="p-backup" placeholder="covers this person's PTO" value="${d.backup||""}"></div>
-    <div><button class="btn btn-danger p-del">✕</button></div>`;
+    <div><label>Name</label><input class="p-name" aria-label="Resource name" value="${d.name||""}"></div>
+    <div><label>Role</label><select class="p-role" aria-label="Role">${["",...ROLES].map(r=>`<option ${r===d.role?"selected":""}>${r}</option>`).join("")}</select></div>
+    <div><label>Capacity (d/wk)</label><input class="p-cap" type="number" step="0.25" min="0.25" max="4" aria-label="Capacity in days per week" value="${d.cap!=null?d.cap:""}"></div>
+    <div><label>City</label><select class="p-city" aria-label="City">${CITIES.map(c=>`<option ${c===d.city?"selected":""}>${c}</option>`).join("")}</select></div>
+    <div><label>PTO ranges</label><input class="p-pto" placeholder="18/09/2026-25/09/2026" aria-label="PTO ranges" value="${d.pto||""}"></div>
+    <div><label>Backup (name)</label><input class="p-backup" placeholder="covers this person's PTO" aria-label="Backup person name" value="${d.backup||""}"></div>
+    <div><button type="button" class="btn btn-danger p-del" title="Remove this resource" aria-label="Remove this resource">✕</button></div>`;
   wrap.querySelector(".p-del").addEventListener("click",()=>wrap.remove());
   document.getElementById("planRows").appendChild(wrap);
 }
@@ -504,7 +516,7 @@ function render(){
   // head
   const head=document.getElementById("gridHead"); head.innerHTML="";
   ["Name Suggestion","Days","Hours","FTE","ROLE","AREA (city)","SENIORITY",...weeks.map(w=>w.label)]
-    .forEach(c=>{const th=document.createElement("th"); th.textContent=c; head.appendChild(th);});
+    .forEach(c=>{const th=document.createElement("th"); th.scope="col"; th.textContent=c; head.appendChild(th);});
   // body
   const body=document.getElementById("gridBody"); body.innerHTML="";
   let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0); const warns=[];
@@ -533,7 +545,7 @@ function render(){
   PIR_ORDER.forEach(code=>{ const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
     const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){ if(h<b)cm="hours missing"; else if(h>b)cm="exceed"; }
     const tr=document.createElement("tr"); tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td>`;
-    const bt=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px";
+    const bt=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px"; bi.setAttribute("aria-label", code+" BPE hours");
     if(b!=null)bi.value=b; bi.addEventListener("input",()=>{const v=parseFloat(bi.value); if(bi.value==="")delete bpe[code]; else bpe[code]=v; render();});
     bt.appendChild(bi); tr.appendChild(bt);
     const ct=document.createElement("td"); ct.textContent=cm; if(cm)ct.style.color=cm==="exceed"?"#c0392b":"#b8860b"; tr.appendChild(ct);
