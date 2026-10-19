@@ -239,22 +239,24 @@ function renderHead(){
   // fixed columns
   ["Name Suggestion","Days","Hours","FTE","ROLE"].forEach(c=>{
     const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
-  // week columns; the LAST one carries the + / - buttons to add/remove weeks
+  const mkBtn=(txt,title,fn)=>{ const b=document.createElement("button"); b.textContent=txt; b.title=title;
+    b.style.cssText="margin-left:4px;padding:0 6px;font-weight:700;border:none;border-radius:4px;cursor:pointer;background:var(--accent);color:var(--brand);line-height:1.4";
+    b.addEventListener("click",fn); return b; };
+  // week columns; the LAST week column also carries the "-" (remove last week) button
   weeks.forEach((w,idx)=>{
     const th=document.createElement("th");
     if(idx===weeks.length-1){
       th.innerHTML=`<span style="vertical-align:middle">${w.label}</span>`;
-      const mk=(txt,title,fn)=>{ const b=document.createElement("button"); b.textContent=txt; b.title=title;
-        b.style.cssText="margin-left:4px;padding:0 5px;font-weight:700;border:none;border-radius:4px;cursor:pointer;background:var(--accent);color:var(--brand);line-height:1.4";
-        b.addEventListener("click",fn); return b; };
-      th.appendChild(mk("+","Add a week",addWeek));
-      th.appendChild(mk("−","Remove last week",removeWeek));
+      th.appendChild(mkBtn("−","Remove last week",removeWeek));
     } else {
       th.textContent=w.label;
     }
     head.appendChild(th);
   });
-  const blank=document.createElement("th"); blank.textContent=""; head.appendChild(blank);
+  // last column (aligned with each row's ✕) carries the "+" (add week) button
+  const lastTh=document.createElement("th");
+  lastTh.appendChild(mkBtn("+","Add a week",addWeek));
+  head.appendChild(lastTh);
 }
 // Add a week column at the end (dates continue the weekly sequence).
 function addWeek(){
