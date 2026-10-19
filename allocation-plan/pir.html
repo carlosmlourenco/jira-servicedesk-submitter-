@@ -64,13 +64,35 @@
     clip:rect(0 0 0 0); white-space:nowrap; border:0; }
   /* skip link: hidden until focused */
   .skip-link { position:absolute; left:8px; top:-40px; background:var(--brand); color:#fff;
-    padding:8px 12px; border-radius:6px; z-index:100; transition:top .15s; }
+    padding:8px 12px; border-radius:6px; z-index:200; transition:top .15s; }
   .skip-link:focus { top:8px; }
+  /* sticky header + hamburger menu */
+  .brandbar { position:sticky; top:0; z-index:100; }
+  .nav { position:relative; margin-left:auto; }
+  .nav-toggle { background:transparent; border:1px solid var(--accent); color:var(--accent);
+    font-size:18px; line-height:1; padding:4px 10px; border-radius:6px; cursor:pointer; }
+  .nav-menu { position:absolute; right:0; top:calc(100% + 6px); background:#fff; color:var(--ink);
+    border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.15);
+    min-width:180px; padding:6px; display:none; }
+  .nav-menu.open { display:block; }
+  .nav-menu a { display:block; padding:8px 10px; border-radius:6px; color:var(--ink);
+    text-decoration:none; font-size:14px; font-weight:600; }
+  .nav-menu a:hover, .nav-menu a:focus { background:var(--grey); color:var(--brand); }
+  .nav-menu a[aria-current="page"] { background:var(--accent); color:var(--brand); }
 </style>
 </head>
 <body>
   <a href="#main" class="skip-link">Skip to main content</a>
-  <div class="brandbar"><span class="logo" aria-hidden="true">P</span><span class="name">Resource Planner</span><span class="tag">PIR</span></div>
+  <div class="brandbar"><span class="logo" aria-hidden="true">P</span><span class="name">Resource Planner</span><span class="tag">PIR</span>
+    <nav class="nav">
+      <button class="nav-toggle" id="navToggle" aria-haspopup="true" aria-expanded="false" aria-controls="navMenu" aria-label="Open navigation menu">☰</button>
+      <div class="nav-menu" id="navMenu" role="menu">
+        <a href="pir.html" role="menuitem" aria-current="page">PIR</a>
+        <a href="planner.html" role="menuitem">Auto-Planner</a>
+        <a href="index.html" role="menuitem">Manual</a>
+      </div>
+    </nav>
+  </div>
   <main id="main" class="wrap">
   <div id="viewBanner" role="status" aria-live="polite" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
   <h1>PIR — Project Initiation Request</h1>
@@ -156,6 +178,20 @@
   </main>
 
 <script>
+// ---------- hamburger navigation menu (accessible) ----------
+(function(){
+  const toggle=document.getElementById("navToggle"), menu=document.getElementById("navMenu");
+  if(!toggle||!menu) return;
+  const open=()=>{ menu.classList.add("open"); toggle.setAttribute("aria-expanded","true");
+    const first=menu.querySelector("a"); if(first) first.focus(); };
+  const close=(focusBack)=>{ menu.classList.remove("open"); toggle.setAttribute("aria-expanded","false");
+    if(focusBack) toggle.focus(); };
+  toggle.addEventListener("click",e=>{ e.stopPropagation();
+    menu.classList.contains("open")?close(false):open(); });
+  document.addEventListener("click",e=>{ if(!menu.contains(e.target)&&e.target!==toggle) close(false); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&menu.classList.contains("open")) close(true); });
+})();
+
 const HOURS_PER_DAY=8, FULL_WEEK=5, MIN=0.25, MAXLINE=4;
 // PIR codes for this PIR form (ST = Service Team replaces the old ENG (TS))
 const PIR_ORDER=["DM","PM","DS","RiskC","BA","ST"];
