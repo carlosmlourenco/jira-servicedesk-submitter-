@@ -5,7 +5,7 @@
 > É a fonte de verdade legível por humanos — mantido em sincronia com o código em
 > `allocation-plan/pir.html`.
 >
-> Última atualização: 2026-09-14
+> Última atualização: 2026-09-14 (13 roles — removidas Data Analyst e Fraud Analyst)
 
 ---
 
@@ -136,18 +136,6 @@ Legenda:
 - Máx. pessoas (Suggest): **1**
 - Limites semanais: 2 h mín · 32 h máx · passo 2 h
 
-### Fraud Analyst
-- Grupo: **Hands-on**
-- Visibilidade: **Expand** (escondida por defeito)
-- Máx. pessoas (Suggest): **3**
-- Limites semanais: 2 h mín · 32 h máx · passo 2 h
-
-### Data Analyst
-- Grupo: **Hands-on**
-- Visibilidade: **Expand** (escondida por defeito)
-- Máx. pessoas (Suggest): **3**
-- Limites semanais: 2 h mín · 32 h máx · passo 2 h
-
 ### Quality Assurance Engineer
 - Grupo: **Hands-on**
 - Visibilidade: **Expand** (escondida por defeito)
@@ -177,8 +165,6 @@ Legenda:
 | Business Analyst | Hands-on | Visível | 3 |
 | Risk Consultant | Hands-on | Visível | 3 |
 | Project Director | Gestão | Expand | 1 |
-| Fraud Analyst | Hands-on | Expand | 3 |
-| Data Analyst | Hands-on | Expand | 3 |
 | Quality Assurance Engineer | Hands-on | Expand | 3 |
 | Delivery Consultant | Hands-on | Expand | 3 |
 
