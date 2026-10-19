@@ -129,16 +129,16 @@ const HOURS_PER_DAY=8, FULL_WEEK=5, MIN=0.25, MAXLINE=4;
 const PIR_ORDER=["DM","PM","DS","RiskC","BA","ST"];
 // Roles people can have, mapped to a PIR code
 const ROLES=["Delivery Manager","Project Manager","Data Scientist","Data Analyst",
- "Risk Consultant","Risk&AI Manager","Business Analyst","ST"];
+ "Risk Consultant","Risk&AI Manager","Business Analyst","Service Team"];
 const ROLE_TO_PIR={"delivery manager":"DM","project manager":"PM","data scientist":"DS",
  "data analyst":"DS","risk consultant":"RiskC","risk&ai manager":"RiskC","risk & ai manager":"RiskC",
- "business analyst":"BA","st":"ST"};
+ "business analyst":"BA","service team":"ST"};
 // Friendly labels for the breakdown inputs (full role name + acronym)
 const ROLE_LABELS={DM:"Delivery Manager (DM)",PM:"Project Manager (PM)",DS:"Data Science (DS)",
   RiskC:"Risk Consultant (RiskC)",BA:"Business Analyst (BA)",ST:"Service Team (ST)"};
 // Representative role name (for the people grid) per PIR code
 const CODE_TO_ROLE={DM:"Delivery Manager",PM:"Project Manager",DS:"Data Scientist",
-  RiskC:"Risk Consultant",BA:"Business Analyst",ST:"ST"};
+  RiskC:"Risk Consultant",BA:"Business Analyst",ST:"Service Team"};
 // Max people per role. DM is always 1; PM is 1 by default (2 only when DS is at
 // its max of 3 people x 4 days/week); hands-on roles up to 3.
 const HARD_MAX_PEOPLE={DM:1,PM:2,DS:3,RiskC:3,BA:3,ST:3};
