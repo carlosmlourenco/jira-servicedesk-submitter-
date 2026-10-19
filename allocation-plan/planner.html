@@ -82,6 +82,19 @@
     text-decoration:none; font-size:14px; font-weight:600; }
   .nav-menu a:hover, .nav-menu a:focus { background:var(--grey); color:var(--brand); }
   .nav-menu a[aria-current="page"] { background:var(--accent); color:var(--brand); }
+  /* responsive: keep the page from scrolling sideways; only tables scroll */
+  html, body { max-width:100%; overflow-x:hidden; }
+  .scroll { max-width:100%; }
+  @media (max-width:640px){
+    .wrap { padding:16px 12px; }
+    .brandbar { padding:12px 14px; }
+    .brandbar .tag { display:none; }
+    fieldset { padding:12px 12px; }
+    h1 { font-size:18px; }
+    .toolbar { gap:6px; }
+    .btn { padding:8px 12px; font-size:14px; }
+    .plan-row { grid-template-columns:1fr 1fr; }
+  }
 </style>
 </head>
 <body>
