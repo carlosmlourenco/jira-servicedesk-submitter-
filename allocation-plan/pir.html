@@ -46,6 +46,10 @@
   .btn-ghost { background:#fff; border:1px solid var(--brand); color:var(--brand); }
   .btn-ghost:hover { background:var(--grey); }
   .btn-danger { background:#fff; border:1px solid var(--line); color:var(--bad); }
+  /* primary call-to-action: the final step (Submit PIR) stands out */
+  .btn-cta { background:var(--brand); color:var(--accent); border:2px solid var(--accent);
+    padding:10px 20px; font-size:15px; box-shadow:0 2px 10px rgba(35,47,15,.25); }
+  .btn-cta:hover { filter:brightness(1.1); }
   .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0; align-items:center; }
   .pill { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:700; }
   .pill.ok { background:var(--accent); color:var(--brand); } .pill.bad { background:#fbe1de; color:var(--bad); }
@@ -171,7 +175,7 @@
     <button class="btn btn-ghost" id="loadExample">Load example</button>
     <button class="btn btn-primary" id="download">⬇ Download CSV</button>
     <button class="btn btn-primary" id="generate" title="Generates a unique shareable link for this plan">🔗 Share</button>
-    <button class="btn btn-primary" id="submitPir" title="Submit this PIR to the Jira Service Desk">📨 Submit PIR</button>
+    <button class="btn btn-cta" id="submitPir" title="Submit this PIR to the Jira Service Desk">📨 Submit PIR</button>
   </div>
   <div class="toolbar" id="shareBar" style="display:none; border-top:1px dashed var(--line); padding-top:12px">
     <span class="pill ok" id="planIdPill">Plan ID: —</span>
