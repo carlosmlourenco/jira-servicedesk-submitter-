@@ -55,7 +55,12 @@
   .pill.ok { background:var(--accent); color:var(--brand); } .pill.bad { background:#fbe1de; color:var(--bad); }
   .warn { color:var(--bad); font-size:12px; margin-top:8px; white-space:pre-line; }
   .muted { color:var(--muted); }
-  .roles-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
+  .roles-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; align-items:end; }
+  /* each breakdown cell: label on top, input pinned to the bottom so inputs
+     line up across the row even when labels wrap to 2 lines */
+  .roles-grid > div { display:flex; flex-direction:column; justify-content:flex-end; }
+  .roles-grid label { min-height:2.4em; display:flex; align-items:flex-end; }
+  .roles-grid input { width:100%; box-sizing:border-box; }
   .plan-row { display:grid; grid-template-columns:1.6fr 1.4fr auto; gap:8px; align-items:end; margin-bottom:8px; }
   .plan-row input, .plan-row select { width:100%; }
   code { background:var(--grey); padding:1px 5px; border-radius:4px; color:var(--brand); }
@@ -94,6 +99,12 @@
     h1 { font-size:18px; }
     .toolbar { gap:6px; }
     .btn, .btn-cta { padding:8px 12px; font-size:14px; }
+    .roles-grid { grid-template-columns:1fr 1fr; }
+    .roles-grid label { min-height:0; }
+    .hdr-grid { grid-template-columns:1fr; }
+  }
+  @media (max-width:420px){
+    .roles-grid { grid-template-columns:1fr; }
   }
 </style>
 </head>
