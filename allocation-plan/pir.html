@@ -151,17 +151,17 @@
   </fieldset>
 
   <fieldset id="peopleSection">
-    <legend>People — weekly allocation (days/week)</legend>
+    <legend>People — weekly allocation (hours/week)</legend>
     <details style="margin-bottom:12px">
       <summary style="cursor:pointer; font-size:13px; color:var(--brand); font-weight:600">Allocation conditions (how "Suggest" works)</summary>
       <ul style="font-size:12px; color:var(--muted); margin:8px 0 0; padding-left:18px; line-height:1.6">
         <li>Allocation starts on the <b>Start date</b> and spans the <b>Duration (weeks)</b> you set. End date is derived from these.</li>
-        <li>Weekly allocation per person is <b>flat</b>, from <b>0.25</b> (2h/week) up to <b>4</b> days/week (32h/week), in <b>0.25</b> steps.</li>
-        <li>One person works at most <b>4 days/week</b>. If a role needs more, it is split across multiple people.</li>
-        <li>Max people per role: <b>Delivery Manager = 1</b>, <b>Project Manager = 1</b> (2 only when Data Science is maxed at 3 people × 4 days/week), <b>hands-on roles = 3</b>.</li>
-        <li>The suggestion <b>never allocates more</b> hours than the breakdown — it matches exactly or falls slightly short (rounded down to 0.25).</li>
+        <li>Weekly allocation per person is <b>flat</b>, from <b>2h</b> up to <b>32h</b> per week, in <b>2h</b> steps.</li>
+        <li>One person works at most <b>32h/week</b>. If a role needs more, it is split across multiple people.</li>
+        <li>Max people per role: <b>Delivery Manager = 1</b>, <b>Project Manager = 1</b> (2 only when Data Science is maxed at 3 people × 32h/week), <b>hands-on roles = 3</b>.</li>
+        <li>The suggestion <b>never allocates more</b> hours than the breakdown — it matches exactly or falls slightly short (rounded down to 2h).</li>
         <li><b>Too short</b> a duration (doesn't fit even at max people) → allocates the maximum and warns about leftover hours.</li>
-        <li><b>Too long</b> a duration → a person drops to the 0.25 minimum, placed on the first weeks needed (later weeks stay empty).</li>
+        <li><b>Too long</b> a duration → a person drops to the 2h minimum, placed on the first weeks needed (later weeks stay empty).</li>
         <li><b>Total Values Match?</b> is TRUE only when the allocated hours equal the breakdown for <b>every</b> role.</li>
       </ul>
     </details>
@@ -175,7 +175,7 @@
     </div>
     <div class="toolbar">
       <button class="btn btn-ghost" id="addRow" title="Adds a line for a new person">+ Add person</button>
-      <span class="muted" style="font-size:12px">Weeks generated from the dates. Values in days/week (×8h).</span>
+      <span class="muted" style="font-size:12px">Weeks generated from the dates. Values in hours/week.</span>
     </div>
     <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
   </fieldset>
@@ -223,7 +223,9 @@
   document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&menu.classList.contains("open")) close(true); });
 })();
 
-const HOURS_PER_DAY=8, FULL_WEEK=5, MIN=0.25, MAXLINE=4;
+const HOURS_PER_DAY=8, FULL_WEEK=5;
+// Weekly allocation is now entered in HOURS/week: min 2h, max 32h, step 2h.
+const MIN_H=2, MAX_H=32, STEP_H=2;
 // PIR codes for this PIR form (ST = Service Team replaces the old ENG (TS))
 const PIR_ORDER=["DM","PM","DS","RiskC","BA","ST"];
 // Roles people can have, mapped to a PIR code
@@ -305,7 +307,7 @@ function makeRoleSelect(val){
   ROLES.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;if(r===val)o.selected=true;s.appendChild(o);});
   s.addEventListener("change",render); return s;
 }
-function weekInput(v,label){ const i=document.createElement("input"); i.type="number"; i.step="0.25"; i.min="0"; i.max="4";
+function weekInput(v,label){ const i=document.createElement("input"); i.type="number"; i.step=String(STEP_H); i.min="0"; i.max=String(MAX_H);
   if(label) i.setAttribute("aria-label",label);
   if(v!=null&&v!=="") i.value=v; i.addEventListener("input",render); return i; }
 
@@ -399,15 +401,16 @@ function render(){
     const role=tr.querySelector("td.meta select").value;
     const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value===""?0:parseFloat(i.value)||0));
     const active=weekly.filter(v=>v>0);
-    const days=weekly.reduce((a,b)=>a+b,0), hours=days*HOURS_PER_DAY;
-    const fte=active.length?(days/active.length/FULL_WEEK):null;
+    // cells are HOURS/week now
+    const hours=weekly.reduce((a,b)=>a+b,0), days=hours/HOURS_PER_DAY;
+    const fte=active.length?((hours/active.length)/(FULL_WEEK*HOURS_PER_DAY)):null;
     tr.querySelector(".days").textContent=fmtNum(days);
     tr.querySelector(".hours").textContent=hours.toFixed(2);
     tr.querySelector(".fte").textContent=fte===null?"#DIV/0!":fte.toFixed(2);
     gd+=days; gh+=hours;
     const code=ROLE_TO_PIR[(role||"").toLowerCase()]; if(code)pir[code]+=days;
     else if((role||"").trim()) warns.push(`Role "${role}" has no PIR mapping.`);
-    active.forEach(v=>{ if(v>MAXLINE) warns.push(`${name||"?"}: ${fmtNum(v)} exceeds ${MAXLINE}/line.`); });
+    active.forEach(v=>{ if(v>MAX_H) warns.push(`${name||"?"}: ${fmtNum(v)}h exceeds ${MAX_H}h/week.`); });
     gridRows.push({name,role,weekly});
   });
   const gt=document.getElementById("gridTotal"); gt.innerHTML="";
@@ -441,12 +444,13 @@ function toCSV(){
   L.push(["","","","(Mandatory fields)","","","",year]);
   L.push(["Name Suggestion","Days per role","Hours per role","FTE Average","ROLE","PREFERRED ALLOCATION AREA","PREFERRED SENIORITY",...weeks.map(w=>w.label)]);
   let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0);
-  gridRows.forEach(r=>{ const wk=r.weekly.map(v=>v===""?0:(parseFloat(v)||0));
-    const active=wk.filter(v=>v>0); const days=wk.reduce((a,b)=>a+b,0),hours=days*HOURS_PER_DAY;
-    const fte=active.length?(days/active.length/FULL_WEEK):null; gd+=days; gh+=hours;
+  gridRows.forEach(r=>{ const wkH=r.weekly.map(v=>v===""?0:(parseFloat(v)||0));   // HOURS/week
+    const active=wkH.filter(v=>v>0); const hours=wkH.reduce((a,b)=>a+b,0), days=hours/HOURS_PER_DAY;
+    const fte=active.length?((hours/active.length)/(FULL_WEEK*HOURS_PER_DAY)):null; gd+=days; gh+=hours;
     const code=ROLE_TO_PIR[(r.role||"").toLowerCase()]; if(code)pir[code]+=days;
+    // CSV keeps the Jira template in DAYS: weekly cells and Days column are hours/8
     L.push([r.name,fmtNum(days),hours.toFixed(2),fte===null?"#DIV/0!":fte.toFixed(2),r.role,"","",
-      ...wk.map(v=>v>0?fmtNum(v):"")]);
+      ...wkH.map(v=>v>0?fmtNum(v/HOURS_PER_DAY):"")]);
   });
   L.push(["TOTAL",fmtNum(gd),fmtNum(gh)]); L.push([]); L.push([]);
   L.push(["","","(Use below values in the PIR)","(Mandatory field)"]);
@@ -504,22 +508,24 @@ function copyShareLink(){
 //  - too short (doesn't fit even at the people cap) -> allocate the max and warn.
 //  - too long (days/week < 0.25) -> 0.25 on the first weeks needed, 0 on the rest.
 //  - all roles span the same N weeks; end date is computed from start + N weeks.
+// Internal spread works in DAYS (0.25-day grid = 2h). min 0.25d=2h, max 4d=32h.
+const DAY_MIN=0.25, DAY_MAX=4;
 function distributePerson(personTotalDays, N){
-  // returns an N-length array of 0.25-multiples that sum to personTotalDays,
+  // returns an N-length array of 0.25-day multiples that sum to personTotalDays,
   // never exceeding 4/week. If < 0.25/week on average, concentrates 0.25 on the
   // first weeks needed (rest 0).
   const wk=new Array(N).fill(0);
-  // FLOOR to 0.25 so a person never carries more hours than given (never exceed).
-  let quarters=Math.floor(personTotalDays/MIN + 1e-9);   // number of 0.25 units
+  // FLOOR to 0.25 so a person never carries more than given (never exceed).
+  let quarters=Math.floor(personTotalDays/DAY_MIN + 1e-9);   // number of 0.25 units
   if(quarters<=0) return wk;
-  const capQ=Math.round(MAXLINE/MIN);             // max 0.25 units per week (=16)
+  const capQ=Math.round(DAY_MAX/DAY_MIN);             // max 0.25 units per week (=16)
   if(quarters>=N){
     const base=Math.floor(quarters/N); let rem=quarters-base*N;
-    for(let w=0;w<N;w++) wk[w]=base*MIN;
+    for(let w=0;w<N;w++) wk[w]=base*DAY_MIN;
     let w=0;
-    while(rem>0){ if(Math.round(wk[w]/MIN)+1<=capQ){ wk[w]=Math.round((wk[w]+MIN)*10000)/10000; rem--; } w=(w+1)%N; }
+    while(rem>0){ if(Math.round(wk[w]/DAY_MIN)+1<=capQ){ wk[w]=Math.round((wk[w]+DAY_MIN)*10000)/10000; rem--; } w=(w+1)%N; }
   } else {
-    for(let w=0; w<quarters; w++) wk[w]=MIN;       // 0.25 on the first `quarters` weeks
+    for(let w=0; w<quarters; w++) wk[w]=DAY_MIN;       // 0.25 on the first `quarters` weeks
   }
   return wk.map(v=>Math.round(v*10000)/10000);
 }
@@ -535,7 +541,7 @@ function suggestAllocation(){
 
   // PM cap: 2 only if DS is at its max (3 people x 4 days/week) within this N
   const dsDays=days.DS||0;
-  const dsAtMax = dsDays>0 && (dsDays/N) >= (3*MAXLINE)-1e-9;
+  const dsAtMax = dsDays>0 && (dsDays/N) >= (3*DAY_MAX)-1e-9;
   const pmCap = dsAtMax ? 2 : 1;
 
   // build the N-week window from the start date; set the (read-only) end date
@@ -550,7 +556,7 @@ function suggestAllocation(){
     if(!days[code]) return;
     const totalDays=days[code];
     const capPeople = (code==="PM") ? pmCap : HARD_MAX_PEOPLE[code];
-    const perPersonCapDays = MAXLINE*N;              // max days one person can do over N weeks (4/wk)
+    const perPersonCapDays = DAY_MAX*N;              // max days one person can do over N weeks (4/wk)
     let nppl=Math.ceil(totalDays/perPersonCapDays);  // people needed to carry all hours at <=4/wk
     if(nppl<1) nppl=1;
     if(nppl>capPeople){ nppl=capPeople;
@@ -559,8 +565,9 @@ function suggestAllocation(){
     let remaining=totalDays;
     for(let p=0;p<nppl;p++){
       const take = remaining>perPersonCapDays ? perPersonCapDays : remaining;
-      const wk=distributePerson(take, N);
-      peopleRows.push({name:`${code} ${p+1}`, role:CODE_TO_ROLE[code], weekly:wk.map(v=>v>0?fmtNum(v):"")});
+      const wk=distributePerson(take, N);   // in days
+      // grid stores HOURS/week now -> convert days*8
+      peopleRows.push({name:`${code} ${p+1}`, role:CODE_TO_ROLE[code], weekly:wk.map(v=>v>0?fmtNum(v*HOURS_PER_DAY):"")});
       remaining-=take;
     }
     if(remaining>0.001) warnings.push(`${code}: ${fmtNum(remaining*HOURS_PER_DAY)}h left over (duration too short).`);
