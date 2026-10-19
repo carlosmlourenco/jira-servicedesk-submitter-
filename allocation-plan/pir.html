@@ -131,7 +131,6 @@
       <div><label for="projName">Project name</label><input id="projName" placeholder="project name"></div>
       <div><label for="startDate">Start date</label><input id="startDate" type="date"></div>
       <div><label for="durationWeeks">Duration (weeks)</label><input id="durationWeeks" type="number" step="1" min="1" placeholder="e.g. 8"></div>
-      <div><label for="costId">Cost Tracker ID</label><input id="costId" placeholder="12-346-7"></div>
       <input id="endDate" type="hidden">
     </div>
   </fieldset>
@@ -139,6 +138,10 @@
   <fieldset>
     <legend>Breakdown per role (hours)</legend>
     <div class="roles-grid" id="rolesGrid"></div>
+    <div class="roles-grid" id="rolesGridExpand" style="display:none; margin-top:12px"></div>
+    <div class="toolbar" style="justify-content:center">
+      <button class="btn btn-ghost" id="toggleExpand" type="button" aria-expanded="false" aria-controls="rolesGridExpand">+ More roles</button>
+    </div>
     <div class="toolbar">
       <span class="pill ok" id="breakdownPill">Total breakdown: — h</span>
       <span class="muted" style="font-size:12px">Hours per role. The suggestion never allocates more than these; it may fall slightly short.</span>
@@ -209,30 +212,41 @@
 })();
 
 const HOURS_PER_DAY=8, FULL_WEEK=5;
-// Weekly allocation is now entered in HOURS/week: min 2h, max 32h, step 2h.
+// Weekly allocation is entered in HOURS/week: min 2h, max 32h, step 2h.
 const MIN_H=2, MAX_H=32, STEP_H=2;
-// PIR codes for this PIR form (ST = Service Team replaces the old ENG (TS))
-const PIR_ORDER=["DM","PM","DS","RiskC","BA","ST"];
-// Roles people can have, mapped to a PIR code
-const ROLES=["Delivery Manager","Project Manager","Data Scientist","Data Analyst",
- "Risk Consultant","Risk&AI Manager","Business Analyst","Service Team"];
-const ROLE_TO_PIR={"delivery manager":"DM","project manager":"PM","data scientist":"DS",
- "data analyst":"DS","risk consultant":"RiskC","risk&ai manager":"RiskC","risk & ai manager":"RiskC",
- "business analyst":"BA","service team":"ST"};
-// Friendly labels for the breakdown inputs (full role name + acronym)
-const ROLE_LABELS={DM:"Delivery Manager (DM)",PM:"Project Manager (PM)",DS:"Data Science (DS)",
-  RiskC:"Risk Consultant (RiskC)",BA:"Business Analyst (BA)",ST:"Service Team (ST)"};
-// Representative role name (for the people grid) per PIR code
-const CODE_TO_ROLE={DM:"Delivery Manager",PM:"Project Manager",DS:"Data Scientist",
-  RiskC:"Risk Consultant",BA:"Business Analyst",ST:"Service Team"};
-// Max people per role. DM is always 1; PM is 1 by default (2 only when DS is at
-// its max of 3 people x 4 days/week); hands-on roles up to 3.
-const HARD_MAX_PEOPLE={DM:1,PM:2,DS:3,RiskC:3,BA:3,ST:3};
-const BASE_PEOPLE_CAP={DM:1,PM:1,DS:3,RiskC:3,BA:3,ST:3};
+
+// The 15 roles. ROLES = the full list (also the people-grid dropdown).
+// ROLES_VISIBLE show in the breakdown by default; ROLES_EXPAND hide behind a toggle.
+const ROLES_VISIBLE=[
+  "Delivery Manager","Project Manager","Compliance Manager",
+  "Engineering Manager","Solution Architect","Software Engineer",
+  "Risk & AI Manager","Data Scientist","Business Analyst","Risk Consultant"
+];
+const ROLES_EXPAND=[
+  "Project Director","Fraud Analyst","Data Analyst",
+  "Quality Assurance Engineer","Delivery Consultant"
+];
+const ROLES=[...ROLES_VISIBLE,...ROLES_EXPAND];
+
+// Max people per role in Suggest. Management roles = 1, everyone else = 3.
+const MANAGER_ROLES=new Set([
+  "Delivery Manager","Project Manager","Project Director",
+  "Compliance Manager","Engineering Manager","Risk & AI Manager"
+]);
+function maxPeople(role){ return MANAGER_ROLES.has(role) ? 1 : 3; }
+
+// Staffing Validation Status options (mandatory once a resource name is set).
+const STAFFING_STATUS=[
+  "Pre-Approved by GDC Mgmt (Ready to Book)",
+  "PM Preference (Pending GDC Approval)",
+  "Open Demand (WFM to Source)"
+];
+// Allocation Type options (one per line; default "add").
+const ALLOC_TYPES=["add","remove","split","swap"];
 
 let weeks=[];           // [{mon:Date,label:"dd/mm"}]
-let gridRows=[];        // [{name,role,weekly:[...]}]
-const bpe={};           // PIR code -> hours (from breakdown)
+let gridRows=[];        // [{name,role,alloc,status,area,sen,weekly:[...]}]
+const bpe={};           // role name -> hours (from breakdown)
 let currentPlanId=null;
 
 // ---------- helpers ----------
@@ -242,16 +256,6 @@ function parseISO(s){ if(!s) return null; const [y,m,d]=s.split("-").map(Number)
 function mondayOf(d){ const x=new Date(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); return x; }
 function fmtNum(n){ if(n===null||n===undefined||isNaN(n)) return ""; const r=Math.round(n*100)/100; return r%1===0?String(r):r.toString(); }
 
-// Match = for every PIR code, allocated hours (days×8 from the grid) equal the
-// breakdown (BPE). A code with no BPE counts as 0. Takes a {code: days} map.
-function rolesMatchBreakdown(pirDays){
-  return PIR_ORDER.every(code=>{
-    const allocH=(pirDays[code]||0)*HOURS_PER_DAY;
-    const wantH=(bpe[code]!=null&&!isNaN(bpe[code]))?bpe[code]:0;
-    return Math.round(allocH*1e6)===Math.round(wantH*1e6);
-  });
-}
-
 function buildWeeks(){
   const s=parseISO(document.getElementById("startDate").value);
   const e=parseISO(document.getElementById("endDate").value);
@@ -260,38 +264,54 @@ function buildWeeks(){
   while(cur<=em){ weeks.push({mon:new Date(cur), label:lbl(cur)}); cur.setDate(cur.getDate()+7); }
 }
 
-// ---------- breakdown by role (feeds BPE) ----------
+// ---------- breakdown by role (feeds BPE, keyed by role NAME) ----------
+// safe id fragment from a role name (for input ids / dataset)
+function roleId(role){ return role.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
+function buildBreakdownCell(host, role){
+  const div=document.createElement("div");
+  const inpId="bpe-"+roleId(role);
+  const label=document.createElement("label"); label.setAttribute("for",inpId); label.textContent=role+" — hours";
+  const inp=document.createElement("input"); inp.type="number"; inp.step="1"; inp.min="0";
+  inp.id=inpId; inp.dataset.role=role; inp.className="bpe-input";
+  inp.setAttribute("aria-label", role+" hours");
+  inp.addEventListener("input",()=>{ const v=parseFloat(inp.value);
+    if(inp.value==="") delete bpe[role]; else bpe[role]=v; updateBreakdownPill(); render(); });
+  div.appendChild(label); div.appendChild(inp); host.appendChild(div);
+}
 function renderBreakdown(){
   const host=document.getElementById("rolesGrid");
+  const hostX=document.getElementById("rolesGridExpand");
   if(host.childElementCount===0){
-    PIR_ORDER.forEach(code=>{
-      const div=document.createElement("div");
-      const inpId="bpe-"+code;
-      div.innerHTML=`<label for="${inpId}">${ROLE_LABELS[code]} — hours</label>`;
-      const inp=document.createElement("input"); inp.type="number"; inp.step="1"; inp.min="0";
-      inp.id=inpId; inp.dataset.code=code; inp.className="bpe-input";
-      inp.setAttribute("aria-label", ROLE_LABELS[code]+" hours");
-      inp.addEventListener("input",()=>{ const v=parseFloat(inp.value);
-        if(inp.value==="") delete bpe[code]; else bpe[code]=v; updateBreakdownPill(); render(); });
-      div.appendChild(inp); host.appendChild(div);
-    });
+    ROLES_VISIBLE.forEach(role=>buildBreakdownCell(host, role));
+    ROLES_EXPAND.forEach(role=>buildBreakdownCell(hostX, role));
   }
   updateBreakdownPill();
 }
 function updateBreakdownPill(){
-  let sum=0; PIR_ORDER.forEach(c=>{ if(bpe[c]!=null&&!isNaN(bpe[c])) sum+=bpe[c]; });
+  let sum=0; ROLES.forEach(r=>{ if(bpe[r]!=null&&!isNaN(bpe[r])) sum+=bpe[r]; });
   const pill=document.getElementById("breakdownPill");
   pill.textContent=`Total breakdown: ${fmtNum(sum)} h`;
   pill.className="pill ok";
 }
+// Expand / collapse the extra 5 roles. If any expand-role has a value, keep open.
+function setupExpandToggle(){
+  const btn=document.getElementById("toggleExpand"), grid=document.getElementById("rolesGridExpand");
+  if(!btn||!grid) return;
+  const open=()=>{ grid.style.display=""; btn.setAttribute("aria-expanded","true"); btn.textContent="− Fewer roles"; };
+  const close=()=>{ grid.style.display="none"; btn.setAttribute("aria-expanded","false"); btn.textContent="+ More roles"; };
+  btn.addEventListener("click",()=>{ btn.getAttribute("aria-expanded")==="true"?close():open(); });
+}
 
 // ---------- people grid ----------
-function makeRoleSelect(val){
-  const s=document.createElement("select"); s.setAttribute("aria-label","Role");
-  const b=document.createElement("option"); b.value=""; b.textContent="—"; s.appendChild(b);
-  ROLES.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;if(r===val)o.selected=true;s.appendChild(o);});
+function makeSelect(options, val, ariaLabel, placeholder){
+  const s=document.createElement("select"); s.setAttribute("aria-label",ariaLabel);
+  if(placeholder!=null){ const b=document.createElement("option"); b.value=""; b.textContent=placeholder; s.appendChild(b); }
+  options.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;if(r===val)o.selected=true;s.appendChild(o);});
   s.addEventListener("change",render); return s;
 }
+function makeRoleSelect(val){ return makeSelect(ROLES, val, "Role", "—"); }
+function makeAllocSelect(val){ return makeSelect(ALLOC_TYPES, val||"add", "Allocation Type", null); }
+function makeStatusSelect(val){ return makeSelect(STAFFING_STATUS, val, "Staffing Validation Status", "—"); }
 function weekInput(v,label){ const i=document.createElement("input"); i.type="number"; i.step=String(STEP_H); i.min="0"; i.max=String(MAX_H);
   if(label) i.setAttribute("aria-label",label);
   if(v!=null&&v!=="") i.value=v; i.addEventListener("input",render); return i; }
@@ -303,9 +323,24 @@ function addRow(data){
   const nameI=document.createElement("input"); nameI.placeholder="Name"; nameI.setAttribute("aria-label","Person name"); nameI.value=data.name||""; nameI.addEventListener("input",render);
   nameTd.appendChild(nameI); tr.appendChild(nameTd);
   [["days","Days"],["hours","Hours"],["fte","FTE"]].forEach(([k])=>{const td=document.createElement("td");td.className="calc "+k;td.textContent="0";tr.appendChild(td);});
-  const roleTd=document.createElement("td"); roleTd.className="meta"; roleTd.appendChild(makeRoleSelect(data.role)); tr.appendChild(roleTd);
+  const roleTd=document.createElement("td"); roleTd.className="meta role"; roleTd.appendChild(makeRoleSelect(data.role)); tr.appendChild(roleTd);
+  // Allocation Type
+  const allocTd=document.createElement("td"); allocTd.className="meta alloc"; allocTd.appendChild(makeAllocSelect(data.alloc)); tr.appendChild(allocTd);
+  // Suggested Resource (optional free text; suggestion fills a placeholder name)
+  const resTd=document.createElement("td"); resTd.className="meta res";
+  const resI=document.createElement("input"); resI.placeholder="(optional)"; resI.setAttribute("aria-label","Suggested resource"); resI.value=data.resource||""; resI.addEventListener("input",render);
+  resTd.appendChild(resI); tr.appendChild(resTd);
+  // Staffing Validation Status
+  const statusTd=document.createElement("td"); statusTd.className="meta status"; statusTd.appendChild(makeStatusSelect(data.status)); tr.appendChild(statusTd);
+  // Preferred Area / Preferred Seniority
+  const areaTd=document.createElement("td"); areaTd.className="meta area";
+  const areaI=document.createElement("input"); areaI.placeholder="Area"; areaI.setAttribute("aria-label","Preferred area"); areaI.value=data.area||""; areaI.addEventListener("input",render);
+  areaTd.appendChild(areaI); tr.appendChild(areaTd);
+  const senTd=document.createElement("td"); senTd.className="meta sen";
+  const senI=document.createElement("input"); senI.placeholder="Seniority"; senI.setAttribute("aria-label","Preferred seniority"); senI.value=data.sen||""; senI.addEventListener("input",render);
+  senTd.appendChild(senI); tr.appendChild(senTd);
   weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk";
-    td.appendChild(weekInput(data.weekly?data.weekly[idx]:"", `Week ${w.label} days`)); tr.appendChild(td); });
+    td.appendChild(weekInput(data.weekly?data.weekly[idx]:"", `Week ${w.label} hours`)); tr.appendChild(td); });
   const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.type="button"; rm.className="btn btn-danger"; rm.textContent="✕";
   rm.title="Removes the line"; rm.setAttribute("aria-label","Remove this person"); rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{tr.remove();render();}); rmTd.appendChild(rm); tr.appendChild(rmTd);
   document.getElementById("gridBody").appendChild(tr);
@@ -313,7 +348,7 @@ function addRow(data){
 function renderHead(){
   const head=document.getElementById("gridHead"); head.innerHTML="";
   // fixed columns
-  ["Name Suggestion","Days","Hours","FTE","ROLE"].forEach(c=>{
+  ["Name Suggestion","Total Days","Total Hours","FTE","Role","Allocation Type","Suggested Resource (Optional)","Staffing Validation Status","Preferred Area","Preferred Seniority"].forEach(c=>{
     const th=document.createElement("th"); th.scope="col"; th.textContent=c; head.appendChild(th); });
   const mkBtn=(txt,title,fn,danger)=>{ const b=document.createElement("button"); b.type="button"; b.textContent=txt; b.title=title; b.setAttribute("aria-label",title);
     if(danger){ b.className="btn btn-danger"; b.style.cssText="margin-left:4px;padding:2px 8px"; }  // same CSS as the ✕
@@ -358,14 +393,21 @@ function removeWeek(){
   existing.forEach(r=>addRow(r));
   syncEndDate(); render();
 }
+function selVal(tr,sel){ const n=tr.querySelector(sel); return n?n.value:""; }
+function rowData(tr){
+  const name=selVal(tr,"td:first-child input");
+  const role=selVal(tr,"td.meta.role select");
+  const alloc=selVal(tr,"td.meta.alloc select")||"add";
+  const status=selVal(tr,"td.meta.status select");
+  const resource=selVal(tr,"td.meta.res input");
+  const area=selVal(tr,"td.meta.area input");
+  const sen=selVal(tr,"td.meta.sen input");
+  const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value));
+  return {name, role, alloc, resource, status, area, sen, weekly};
+}
 function collect(){
   const rows=[];
-  document.querySelectorAll("#gridBody tr").forEach(tr=>{
-    const name=tr.querySelector("td.meta input")?tr.querySelector("td.meta input").value:"";
-    const role=tr.querySelector("td.meta select")?tr.querySelector("td.meta select").value:"";
-    const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value));
-    rows.push({name,role,weekly});
-  });
+  document.querySelectorAll("#gridBody tr").forEach(tr=>rows.push(rowData(tr)));
   return rows;
 }
 function rebuildWeeks(){
@@ -378,75 +420,64 @@ function rebuildWeeks(){
 }
 
 // ---------- compute + render ----------
+// Number of fixed (non-week) leading columns in the grid: Name, Days, Hours,
+// FTE, Role, Allocation Type, Suggested Resource, Staffing Status, Area, Seniority.
+const FIXED_COLS=10;
 function render(){
-  const warns=[]; let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0);
+  const warns=[]; let gd=0,gh=0;
   gridRows=[];
   document.querySelectorAll("#gridBody tr").forEach(tr=>{
-    const name=tr.querySelector("td.meta input").value;
-    const role=tr.querySelector("td.meta select").value;
-    const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value===""?0:parseFloat(i.value)||0));
+    const r=rowData(tr);
+    const weekly=r.weekly.map(v=>v===""?0:(parseFloat(v)||0));
     const active=weekly.filter(v=>v>0);
-    // cells are HOURS/week now
+    // cells are HOURS/week
     const hours=weekly.reduce((a,b)=>a+b,0), days=hours/HOURS_PER_DAY;
     const fte=active.length?((hours/active.length)/(FULL_WEEK*HOURS_PER_DAY)):null;
     tr.querySelector(".days").textContent=fmtNum(days);
     tr.querySelector(".hours").textContent=hours.toFixed(2);
     tr.querySelector(".fte").textContent=fte===null?"#DIV/0!":fte.toFixed(2);
     gd+=days; gh+=hours;
-    const code=ROLE_TO_PIR[(role||"").toLowerCase()]; if(code)pir[code]+=days;
-    else if((role||"").trim()) warns.push(`Role "${role}" has no PIR mapping.`);
-    active.forEach(v=>{ if(v>MAX_H) warns.push(`${name||"?"}: ${fmtNum(v)}h exceeds ${MAX_H}h/week.`); });
-    gridRows.push({name,role,weekly});
+    active.forEach(v=>{ if(v>MAX_H) warns.push(`${r.name||"?"}: ${fmtNum(v)}h exceeds ${MAX_H}h/week.`); });
+    // Warning (non-blocking): a named resource must have a Staffing Status.
+    if((r.resource||"").trim() && !(r.status||"").trim())
+      warns.push(`"${r.resource}" has a Suggested Resource but no Staffing Validation Status.`);
+    gridRows.push({name:r.name, role:r.role, alloc:r.alloc||"add", resource:r.resource,
+      status:r.status, area:r.area, sen:r.sen, weekly});
   });
   const gt=document.getElementById("gridTotal"); gt.innerHTML="";
-  ["TOTAL",fmtNum(gd),fmtNum(gh),"","",...weeks.map(()=>""),""].forEach(c=>{const td=document.createElement("td");td.className="calc";td.textContent=c;gt.appendChild(td);});
-  // PIR section removed from the UI; keep pir totals for the CSV + match check.
-  const pb=document.getElementById("pirBody"); if(pb) pb.innerHTML=""; let pd=0,ph=0;
-  PIR_ORDER.forEach(code=>{ const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
-    if(!pb) return;
-    const b=bpe[code];
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td><td>${b==null?"":fmtNum(b)}</td>`;
-    pb.appendChild(tr);
-  });
-  const pt=document.getElementById("pirTotal"); if(pt) pt.innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td>`;
-  // Match = for EVERY role, allocated hours (grid) equal the breakdown (BPE).
-  const match=rolesMatchBreakdown(pir);
-  const mp=document.getElementById("matchPill"); if(mp){ mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad"); }
+  ["TOTAL",fmtNum(gd),fmtNum(gh),...Array(FIXED_COLS-3).fill(""),...weeks.map(()=>""),""]
+    .forEach(c=>{const td=document.createElement("td");td.className="calc";td.textContent=c;gt.appendChild(td);});
   document.getElementById("warnings").textContent=warns.length?"⚠️ "+[...new Set(warns)].join("\n⚠️ "):"";
 }
 
-// ---------- CSV (identical template to the other tools) ----------
+// ---------- CSV ("Request" layout) ----------
 function csvEscape(v){v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+// full dd/mm/yyyy for a week's Monday
+function weekDate(w){ const d=w.mon; return pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear(); }
 function toCSV(){
   const proj=document.getElementById("projName").value;
   const sV=document.getElementById("startDate").value, eV=document.getElementById("endDate").value;
-  const d2=s=>s?s.split("-").reverse().join("/"):""; const year=sV?sV.slice(0,4):"";
+  const d2=s=>s?s.split("-").reverse().join("/"):"";
   const L=[];
+  // project header block
   L.push([proj,"","","(Mandatory fields)","Project Start date",d2(sV)]);
   L.push(["","","","","Project End date",d2(eV)]);
-  L.push(["Cost Tracker ID",document.getElementById("costId").value,"","","Hours per day",HOURS_PER_DAY]);
-  L.push([]); L.push(["","","","","","","","Weekly Resourcing Need"]);
-  L.push(["","","","(Mandatory fields)","","","",year]);
-  L.push(["Name Suggestion","Days per role","Hours per role","FTE Average","ROLE","PREFERRED ALLOCATION AREA","PREFERRED SENIORITY",...weeks.map(w=>w.label)]);
-  let gd=0,gh=0; const pir={}; PIR_ORDER.forEach(c=>pir[c]=0);
-  gridRows.forEach(r=>{ const wkH=r.weekly.map(v=>v===""?0:(parseFloat(v)||0));   // HOURS/week
-    const active=wkH.filter(v=>v>0); const hours=wkH.reduce((a,b)=>a+b,0), days=hours/HOURS_PER_DAY;
-    const fte=active.length?((hours/active.length)/(FULL_WEEK*HOURS_PER_DAY)):null; gd+=days; gh+=hours;
-    const code=ROLE_TO_PIR[(r.role||"").toLowerCase()]; if(code)pir[code]+=days;
-    // CSV keeps the Jira template in DAYS: weekly cells and Days column are hours/8
-    L.push([r.name,fmtNum(days),hours.toFixed(2),fte===null?"#DIV/0!":fte.toFixed(2),r.role,"","",
-      ...wkH.map(v=>v>0?fmtNum(v/HOURS_PER_DAY):"")]);
+  L.push([]);
+  // column header (new Request order)
+  L.push(["Total Days","Total Hours","Allocation Type","Suggested Resource (Optional)",
+    "Staffing Validation Status","Role","Preferred Area","Preferred Seniority",
+    ...weeks.map(weekDate)]);
+  let gd=0, gh=0;
+  gridRows.forEach(r=>{
+    const wkH=r.weekly.map(v=>v===""?0:(parseFloat(v)||0));   // HOURS/week
+    const hours=wkH.reduce((a,b)=>a+b,0), days=hours/HOURS_PER_DAY;
+    gd+=days; gh+=hours;
+    // Total Days = days, Total Hours = hours; weekly cells in HOURS/week.
+    L.push([fmtNum(days), hours.toFixed(2), r.alloc||"add", r.resource||"",
+      r.status||"", r.role||"", r.area||"", r.sen||"",
+      ...wkH.map(v=>v>0?fmtNum(v):"")]);
   });
-  L.push(["TOTAL",fmtNum(gd),fmtNum(gh)]); L.push([]); L.push([]);
-  L.push(["","","(Use below values in the PIR)","(Mandatory field)"]);
-  L.push(["Time Loging","Days","Hours","BPE Hours per role","AI Comment"]);
-  let pd=0,ph=0;
-  PIR_ORDER.forEach(code=>{const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
-    const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){if(h<b)cm="hours missing";else if(h>b)cm="exceed";}
-    L.push([code,fmtNum(d),fmtNum(h),b==null?"":fmtNum(b),cm]);});
-  L.push(["Total",fmtNum(pd),fmtNum(ph)]);
-  L.push(["Total Values Match?",rolesMatchBreakdown(pir)?"TRUE":"FALSE"]);
+  L.push([fmtNum(gd),fmtNum(gh)]);
   return L.map(r=>r.map(csvEscape).join(",")).join("\n");
 }
 function download(){ const csv=toCSV();
@@ -460,12 +491,13 @@ function shortHash(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h^=str
 function encodeState(obj){ const j=JSON.stringify(obj); const b=btoa(unescape(encodeURIComponent(j))); return b.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function decodeState(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4)s+="="; return JSON.parse(decodeURIComponent(escape(atob(s)))); }
 function buildState(){
-  return { v:1,
+  return { v:2,
     project:{ name:document.getElementById("projName").value, start:document.getElementById("startDate").value,
-      end:document.getElementById("endDate").value, duration:document.getElementById("durationWeeks").value,
-      cost:document.getElementById("costId").value },
+      end:document.getElementById("endDate").value, duration:document.getElementById("durationWeeks").value },
     weeks:weeks.map(w=>w.label),
-    rows:gridRows.map(r=>({name:r.name,role:r.role,weekly:r.weekly.map(v=>v===""?0:(parseFloat(v)||0))})),
+    rows:gridRows.map(r=>({name:r.name,role:r.role,alloc:r.alloc||"add",resource:r.resource||"",
+      status:r.status||"",area:r.area||"",sen:r.sen||"",
+      weekly:r.weekly.map(v=>v===""?0:(parseFloat(v)||0))})),
     bpe:{...bpe} };
 }
 function publishShareLink(){
@@ -521,14 +553,10 @@ function suggestAllocation(){
   if(!start){ note.textContent="Set a start date first."; return; }
   const N=parseInt(document.getElementById("durationWeeks").value,10);
   if(!N||N<1){ note.textContent="Set the Duration (weeks) first."; return; }
+  // breakdown hours -> days, keyed by role name
   const days={};
-  PIR_ORDER.forEach(c=>{ const h=bpe[c]; if(h!=null&&!isNaN(h)&&h>0) days[c]=h/HOURS_PER_DAY; });
+  ROLES.forEach(role=>{ const h=bpe[role]; if(h!=null&&!isNaN(h)&&h>0) days[role]=h/HOURS_PER_DAY; });
   if(Object.keys(days).length===0){ note.textContent="Fill the role breakdown (hours) first."; return; }
-
-  // PM cap: 2 only if DS is at its max (3 people x 4 days/week) within this N
-  const dsDays=days.DS||0;
-  const dsAtMax = dsDays>0 && (dsDays/N) >= (3*DAY_MAX)-1e-9;
-  const pmCap = dsAtMax ? 2 : 1;
 
   // build the N-week window from the start date; set the (read-only) end date
   let cur=mondayOf(start); weeks=[];
@@ -538,25 +566,26 @@ function suggestAllocation(){
   document.getElementById("endDate").value=iso(endFri);
 
   const warnings=[]; const peopleRows=[];
-  PIR_ORDER.forEach(code=>{
-    if(!days[code]) return;
-    const totalDays=days[code];
-    const capPeople = (code==="PM") ? pmCap : HARD_MAX_PEOPLE[code];
+  ROLES.forEach(role=>{
+    if(!days[role]) return;
+    const totalDays=days[role];
+    const capPeople = maxPeople(role);
     const perPersonCapDays = DAY_MAX*N;              // max days one person can do over N weeks (4/wk)
     let nppl=Math.ceil(totalDays/perPersonCapDays);  // people needed to carry all hours at <=4/wk
     if(nppl<1) nppl=1;
     if(nppl>capPeople){ nppl=capPeople;
-      warnings.push(`${code}: duration too short — capped at ${capPeople} person(s).`); }
+      warnings.push(`${role}: duration too short — capped at ${capPeople} person(s).`); }
     // fill each person up to 4/wk (perPersonCapDays), remainder on the last
     let remaining=totalDays;
     for(let p=0;p<nppl;p++){
       const take = remaining>perPersonCapDays ? perPersonCapDays : remaining;
       const wk=distributePerson(take, N);   // in days
-      // grid stores HOURS/week now -> convert days*8
-      peopleRows.push({name:`${code} ${p+1}`, role:CODE_TO_ROLE[code], weekly:wk.map(v=>v>0?fmtNum(v*HOURS_PER_DAY):"")});
+      // grid stores HOURS/week -> convert days*8. Default alloc "add", status blank.
+      peopleRows.push({name:`${role} ${p+1}`, role, alloc:"add", resource:"", status:"", area:"", sen:"",
+        weekly:wk.map(v=>v>0?fmtNum(v*HOURS_PER_DAY):"")});
       remaining-=take;
     }
-    if(remaining>0.001) warnings.push(`${code}: ${fmtNum(remaining*HOURS_PER_DAY)}h left over (duration too short).`);
+    if(remaining>0.001) warnings.push(`${role}: ${fmtNum(remaining*HOURS_PER_DAY)}h left over (duration too short).`);
   });
 
   renderHead();
@@ -581,18 +610,22 @@ function renderFromState(state){
   document.getElementById("startDate").value=state.project.start||"";
   document.getElementById("endDate").value=state.project.end||"";
   document.getElementById("durationWeeks").value=state.project.duration||"";
-  document.getElementById("costId").value=state.project.cost||"";
   Object.keys(bpe).forEach(k=>delete bpe[k]); Object.assign(bpe, state.bpe||{});
   // rebuild breakdown inputs with loaded values
-  document.getElementById("rolesGrid").innerHTML=""; renderBreakdown();
-  document.querySelectorAll(".bpe-input").forEach(inp=>{ const c=inp.dataset.code; if(bpe[c]!=null) inp.value=bpe[c]; });
+  document.getElementById("rolesGrid").innerHTML="";
+  document.getElementById("rolesGridExpand").innerHTML=""; renderBreakdown();
+  document.querySelectorAll(".bpe-input").forEach(inp=>{ const role=inp.dataset.role; if(bpe[role]!=null) inp.value=bpe[role]; });
+  // if any expand-role carries a value, reveal the expanded grid
+  if(ROLES_EXPAND.some(r=>bpe[r]!=null)){ const btn=document.getElementById("toggleExpand");
+    if(btn&&btn.getAttribute("aria-expanded")!=="true") btn.click(); }
   buildWeeks(); renderHead();
   // override weeks labels from state (keeps exact columns)
   if(state.weeks&&state.weeks.length){ weeks=state.weeks.map(l=>{const [d,m]=l.split("/").map(Number);
     const yr=(state.project.start||"").slice(0,4)||new Date().getFullYear();
     return {mon:new Date(Number(yr),m-1,d), label:l};}); renderHead(); }
   document.getElementById("gridBody").innerHTML="";
-  (state.rows||[]).forEach(r=>addRow({name:r.name,role:r.role,weekly:r.weekly}));
+  (state.rows||[]).forEach(r=>addRow({name:r.name,role:r.role,alloc:r.alloc,resource:r.resource,
+    status:r.status,area:r.area,sen:r.sen,weekly:r.weekly}));
   if(!(state.rows||[]).length) addRow();
   render(); updateBreakdownPill();
 }
@@ -614,10 +647,10 @@ function loadExample(){
   document.getElementById("projName").value="example";
   document.getElementById("startDate").value="2026-09-14";
   document.getElementById("durationWeeks").value="5";
-  document.getElementById("costId").value="12-346-7";
-  document.getElementById("rolesGrid").innerHTML=""; Object.keys(bpe).forEach(k=>delete bpe[k]);
-  Object.assign(bpe,{DM:0,PM:160,DS:160,RiskC:0,BA:80,ST:0}); renderBreakdown();
-  document.querySelectorAll(".bpe-input").forEach(inp=>{ if(bpe[inp.dataset.code]!=null) inp.value=bpe[inp.dataset.code]; });
+  document.getElementById("rolesGrid").innerHTML="";
+  document.getElementById("rolesGridExpand").innerHTML=""; Object.keys(bpe).forEach(k=>delete bpe[k]);
+  Object.assign(bpe,{"Project Manager":160,"Data Scientist":160,"Business Analyst":80}); renderBreakdown();
+  document.querySelectorAll(".bpe-input").forEach(inp=>{ const role=inp.dataset.role; if(bpe[role]!=null) inp.value=bpe[role]; });
   updateBreakdownPill(); syncEndDate();
   suggestAllocation();   // demonstrates the suggestion based on duration
 }
@@ -638,7 +671,7 @@ function submitPir(){
   // make sure we have an up-to-date shareable link (the justification)
   generate();
   const proj=(document.getElementById("projName").value||"").trim()||"(unnamed project)";
-  let totalH=0; PIR_ORDER.forEach(c=>{ if(bpe[c]!=null&&!isNaN(bpe[c])) totalH+=bpe[c]; });
+  let totalH=0; ROLES.forEach(r=>{ if(bpe[r]!=null&&!isNaN(bpe[r])) totalH+=bpe[r]; });
   const url=(document.getElementById("copyLink").dataset.url)||location.href;
   PirSubmit.open({
     summary: `PIR: ${proj} — ${fmtNum(totalH)}h`,
@@ -674,16 +707,17 @@ function nextMonday(from){
 const IS_ONLINE = (location.protocol === "http:" || location.protocol === "https:");
 function setHidden(id, hidden){ const n=document.getElementById(id); if(n) n.style.display = hidden ? "none" : ""; }
 function hideDownstream(){
-  setHidden("peopleSection", true); setHidden("pirSection", true); setHidden("actionBar", true);
+  setHidden("peopleSection", true); setHidden("actionBar", true);
 }
 function revealAll(){
-  setHidden("peopleSection", false); setHidden("pirSection", false); setHidden("actionBar", false);
+  setHidden("peopleSection", false); setHidden("actionBar", false);
 }
 document.getElementById("suggest").addEventListener("click", revealAll);
 document.getElementById("loadExample").addEventListener("click", revealAll);
 
 (function(){
   renderBreakdown();
+  setupExpandToggle();
   if(tryLoadFromURL()){ revealAll(); return; }   // shared link shows the full plan
   const mon=nextMonday(new Date());
   document.getElementById("startDate").value=`${mon.getFullYear()}-${pad(mon.getMonth()+1)}-${pad(mon.getDate())}`;
