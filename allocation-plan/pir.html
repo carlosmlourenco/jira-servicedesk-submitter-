@@ -133,8 +133,9 @@ const ROLES=["Delivery Manager","Project Manager","Data Scientist","Data Analyst
 const ROLE_TO_PIR={"delivery manager":"DM","project manager":"PM","data scientist":"DS",
  "data analyst":"DS","risk consultant":"RiskC","risk&ai manager":"RiskC","risk & ai manager":"RiskC",
  "business analyst":"BA","st":"ST"};
-// Friendly labels for the breakdown inputs (one per PIR code)
-const ROLE_LABELS={DM:"DM",PM:"PM",DS:"DS",RiskC:"Risk C",BA:"BA",ST:"ST"};
+// Friendly labels for the breakdown inputs (full role name + acronym)
+const ROLE_LABELS={DM:"Delivery Manager (DM)",PM:"Project Manager (PM)",DS:"Data Science (DS)",
+  RiskC:"Risk Consultant (RiskC)",BA:"Business Analyst (BA)",ST:"Service Team (ST)"};
 // Representative role name (for the people grid) per PIR code
 const CODE_TO_ROLE={DM:"Delivery Manager",PM:"Project Manager",DS:"Data Scientist",
   RiskC:"Risk Consultant",BA:"Business Analyst",ST:"ST"};
@@ -179,7 +180,7 @@ function renderBreakdown(){
   if(host.childElementCount===0){
     PIR_ORDER.forEach(code=>{
       const div=document.createElement("div");
-      div.innerHTML=`<label>${ROLE_LABELS[code]} (h)</label>`;
+      div.innerHTML=`<label>${ROLE_LABELS[code]} — hours</label>`;
       const inp=document.createElement("input"); inp.type="number"; inp.step="1"; inp.min="0";
       inp.dataset.code=code; inp.className="bpe-input";
       inp.addEventListener("input",()=>{ const v=parseFloat(inp.value);
