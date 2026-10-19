@@ -227,12 +227,39 @@ const ROLES_EXPAND=[
 ];
 const ROLES=[...ROLES_VISIBLE,...ROLES_EXPAND];
 
-// Max people per role in Suggest. Management roles = 1, everyone else = 3.
-const MANAGER_ROLES=new Set([
-  "Delivery Manager","Project Manager","Project Director",
-  "Compliance Manager","Engineering Manager","Risk & AI Manager"
-]);
-function maxPeople(role){ return MANAGER_ROLES.has(role) ? 1 : 3; }
+// Max people per role in Suggest. Only Data Scientist and Software Engineer can
+// grow to a 3-person team; every other role is a single person.
+const MULTI_PERSON_ROLES=new Set(["Data Scientist","Software Engineer"]);
+function maxPeople(role){ return MULTI_PERSON_ROLES.has(role) ? 3 : 1; }
+
+// Informational grouping (does NOT drive the people cap — that is per role).
+const ROLE_GROUP={
+  "Delivery Manager":"IC","Project Manager":"IC","Compliance Manager":"IC",
+  "Engineering Manager":"Manager","Solution Architect":"IC","Software Engineer":"IC",
+  "Risk & AI Manager":"Manager","Data Scientist":"IC","Business Analyst":"IC",
+  "Risk Consultant":"IC","Project Director":"Manager",
+  "Quality Assurance Engineer":"IC","Delivery Consultant":"IC"
+};
+
+// Per-role weekly cap (hours/week). Defaults to MAX_H (32) when not listed.
+//  - Project Manager: max 50% => 16h/week.
+//  - Delivery Manager / Engineering Manager: light-touch, default 2h growing to 8h.
+const ROLE_WEEK_CAP_H={ "Project Manager":16, "Delivery Manager":8, "Engineering Manager":8 };
+function roleWeekCapH(role){ return ROLE_WEEK_CAP_H[role]!=null ? ROLE_WEEK_CAP_H[role] : MAX_H; }
+// Roles that start at a 2h/week light-touch default before using spare hours.
+const LIGHT_TOUCH_DEFAULT_H=2;
+const LIGHT_TOUCH_ROLES=new Set(["Delivery Manager","Engineering Manager"]);
+
+// Business Analyst does its work in the FIRST 30% of the project weeks.
+const BA_ROLE="Business Analyst";
+const BA_FRONT_LOAD_FRACTION=0.3;
+
+// Conditional "manager top-up": when the manager has NO hours of its own but the
+// dependent roles do, add 2h/week to the manager, taken from the dependents.
+const MANAGER_TOPUP_H=2;
+const RISK_AI_MANAGER="Risk & AI Manager", ENG_MANAGER="Engineering Manager";
+const RISK_AI_DEPENDENTS=["Data Scientist","Risk Consultant","Business Analyst"];
+const ENG_DEPENDENTS=["Software Engineer"];
 
 // Staffing Validation Status options (mandatory once a resource name is set).
 const STAFFING_STATUS=[
@@ -522,33 +549,26 @@ function copyShareLink(){
   else { try{const ta=document.createElement("textarea");ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok();}catch(e){no();} }
 }
 // ---------- Suggest allocation (flat; fixed duration in weeks) ----------
-// You give the Duration (N weeks). Allocation spans those N weeks, flat.
-// Rules:
-//  - people per role = ceil((days_role/N)/4), capped: DM=1, PM=1 (2 only when DS
-//    is at its max of 3 people x 4 d/wk), hands-on=3.
-//  - too short (doesn't fit even at the people cap) -> allocate the max and warn.
-//  - too long (days/week < 0.25) -> 0.25 on the first weeks needed, 0 on the rest.
-//  - all roles span the same N weeks; end date is computed from start + N weeks.
-// Internal spread works in DAYS (0.25-day grid = 2h). min 0.25d=2h, max 4d=32h.
-const DAY_MIN=0.25, DAY_MAX=4;
-function distributePerson(personTotalDays, N){
-  // returns an N-length array of 0.25-day multiples that sum to personTotalDays,
-  // never exceeding 4/week. If < 0.25/week on average, concentrates 0.25 on the
-  // first weeks needed (rest 0).
+// You give the Duration (N weeks). Allocation spans those N weeks.
+// Internal spread works in HOURS on a 2h grid (MIN_H=2, STEP_H=2).
+// Each role honours: a per-role weekly cap (hours), a people cap, and never
+// allocates more than the breakdown. Hours that do not fit are left unassigned.
+// Distribute `personHours` flat across `weekIdx` weeks (an array of week indices,
+// length Wsel) on a 2h grid, capped at `weekCapH` per week. Returns a full
+// N-length array (hours) with zeros outside the selected weeks. Never exceeds
+// personHours (floors to the 2h step).
+function distributeHours(personHours, N, weekIdx, weekCapH){
   const wk=new Array(N).fill(0);
-  // FLOOR to 0.25 so a person never carries more than given (never exceed).
-  let quarters=Math.floor(personTotalDays/DAY_MIN + 1e-9);   // number of 0.25 units
-  if(quarters<=0) return wk;
-  const capQ=Math.round(DAY_MAX/DAY_MIN);             // max 0.25 units per week (=16)
-  if(quarters>=N){
-    const base=Math.floor(quarters/N); let rem=quarters-base*N;
-    for(let w=0;w<N;w++) wk[w]=base*DAY_MIN;
-    let w=0;
-    while(rem>0){ if(Math.round(wk[w]/DAY_MIN)+1<=capQ){ wk[w]=Math.round((wk[w]+DAY_MIN)*10000)/10000; rem--; } w=(w+1)%N; }
-  } else {
-    for(let w=0; w<quarters; w++) wk[w]=DAY_MIN;       // 0.25 on the first `quarters` weeks
-  }
-  return wk.map(v=>Math.round(v*10000)/10000);
+  const Wsel=weekIdx.length; if(Wsel<=0) return wk;
+  const capUnits=Math.floor(weekCapH/STEP_H);            // max 2h units/week
+  let units=Math.floor(personHours/STEP_H + 1e-9);        // total 2h units to place
+  if(units<=0) return wk;
+  const maxUnits=capUnits*Wsel; if(units>maxUnits) units=maxUnits;  // cannot exceed cap over selected weeks
+  const base=Math.floor(units/Wsel); let rem=units-base*Wsel;
+  weekIdx.forEach(i=>{ wk[i]=base*STEP_H; });
+  let k=0;
+  while(rem>0){ const i=weekIdx[k%Wsel]; if(Math.round(wk[i]/STEP_H)+1<=capUnits){ wk[i]=Math.round((wk[i]+STEP_H)*100)/100; rem--; } k++; }
+  return wk.map(v=>Math.round(v*100)/100);
 }
 function suggestAllocation(){
   const note=document.getElementById("suggestNote");
@@ -556,10 +576,30 @@ function suggestAllocation(){
   if(!start){ note.textContent="Set a start date first."; return; }
   const N=parseInt(document.getElementById("durationWeeks").value,10);
   if(!N||N<1){ note.textContent="Set the Duration (weeks) first."; return; }
-  // breakdown hours -> days, keyed by role name
-  const days={};
-  ROLES.forEach(role=>{ const h=bpe[role]; if(h!=null&&!isNaN(h)&&h>0) days[role]=h/HOURS_PER_DAY; });
-  if(Object.keys(days).length===0){ note.textContent="Fill the role breakdown (hours) first."; return; }
+  // breakdown hours per role (copy we can mutate for the conditional rules)
+  const hoursByRole={};
+  ROLES.forEach(role=>{ const h=bpe[role]; if(h!=null&&!isNaN(h)&&h>0) hoursByRole[role]=h; });
+  if(Object.keys(hoursByRole).length===0){ note.textContent="Fill the role breakdown (hours) first."; return; }
+
+  // ----- conditional "manager top-up" rules (run before distributing) -----
+  // A manager with NO hours of its own, but with dependents that DO have hours,
+  // gets MANAGER_TOPUP_H/week (x N weeks), taken from the dependents.
+  const notes=[];
+  function managerTopUp(manager, dependents){
+    const has=r=>hoursByRole[r]!=null && hoursByRole[r]>0;
+    if(has(manager)) return;                      // manager already has its own hours
+    const live=dependents.filter(has);
+    if(live.length===0) return;                   // no dependents with hours => rule off
+    const need=MANAGER_TOPUP_H*N;                 // hours to move to the manager
+    const pool=live.reduce((a,r)=>a+hoursByRole[r],0);
+    const take=Math.min(need, pool);              // cannot take more than exists
+    // subtract proportionally from the dependents
+    live.forEach(r=>{ hoursByRole[r]=Math.max(0, hoursByRole[r]-take*(hoursByRole[r]/pool)); });
+    hoursByRole[manager]=(hoursByRole[manager]||0)+take;
+    notes.push(`${manager}: +${fmtNum(take)}h taken from ${live.join(", ")}.`);
+  }
+  managerTopUp(RISK_AI_MANAGER, RISK_AI_DEPENDENTS);
+  managerTopUp(ENG_MANAGER, ENG_DEPENDENTS);
 
   // build the N-week window from the start date; set the (read-only) end date
   let cur=mondayOf(start); weeks=[];
@@ -568,28 +608,38 @@ function suggestAllocation(){
   const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   document.getElementById("endDate").value=iso(endFri);
 
-  const warnings=[]; const peopleRows=[];
+  const allIdx=Array.from({length:N},(_, i)=>i);
+  const peopleRows=[];
   ROLES.forEach(role=>{
-    if(!days[role]) return;
-    const totalDays=days[role];
-    const capPeople = maxPeople(role);
-    const perPersonCapDays = DAY_MAX*N;              // max days one person can do over N weeks (4/wk)
-    let nppl=Math.ceil(totalDays/perPersonCapDays);  // people needed to carry all hours at <=4/wk
-    if(nppl<1) nppl=1;
-    if(nppl>capPeople){ nppl=capPeople;
-      warnings.push(`${role}: duration too short — capped at ${capPeople} person(s).`); }
-    // fill each person up to 4/wk (perPersonCapDays), remainder on the last
-    let remaining=totalDays;
-    for(let p=0;p<nppl;p++){
-      const take = remaining>perPersonCapDays ? perPersonCapDays : remaining;
-      const wk=distributePerson(take, N);   // in days
-      // grid stores HOURS/week -> convert days*8. Default alloc "add"; no suggested
-      // resource => status becomes Open Demand automatically in render().
-      peopleRows.push({role, alloc:"add", resource:"", status:"", area:"", sen:"",
-        weekly:wk.map(v=>v>0?fmtNum(v*HOURS_PER_DAY):"")});
-      remaining-=take;
+    let total=hoursByRole[role]; if(!total||total<MIN_H) return;
+    const capPeople=maxPeople(role);
+    // Which weeks this role may use. Business Analyst is front-loaded to the
+    // first 30% of the project (at least 1 week).
+    let weekIdx=allIdx;
+    if(role===BA_ROLE){ const w=Math.max(1, Math.ceil(N*BA_FRONT_LOAD_FRACTION)); weekIdx=allIdx.slice(0,w); }
+    const Wsel=weekIdx.length;
+    // Per-role weekly cap. Light-touch roles start at 2h and only use more (up to
+    // their cap) when there are spare hours that would not otherwise fit.
+    let weekCapH=roleWeekCapH(role);
+    if(LIGHT_TOUCH_ROLES.has(role)){
+      const lightCapTotal=LIGHT_TOUCH_DEFAULT_H*Wsel;     // hours if we stay at 2h/week
+      weekCapH = (total>lightCapTotal) ? roleWeekCapH(role) : LIGHT_TOUCH_DEFAULT_H;
     }
-    if(remaining>0.001) warnings.push(`${role}: ${fmtNum(remaining*HOURS_PER_DAY)}h left over (duration too short).`);
+    // People: enough to carry the hours at <= weekCapH/week, capped by capPeople.
+    const perPersonMax=weekCapH*Wsel;
+    let nppl=Math.ceil(total/perPersonMax); if(nppl<1) nppl=1; if(nppl>capPeople) nppl=capPeople;
+    const capacity=perPersonMax*nppl;
+    let assignable=Math.min(total, capacity);             // leftover (total-assignable) is dropped
+    // split assignable across the people, each filled up to its own capacity
+    for(let p=0;p<nppl && assignable>=MIN_H; p++){
+      const take=Math.min(assignable, perPersonMax);
+      const wk=distributeHours(take, N, weekIdx, weekCapH);
+      if(wk.some(v=>v>0)){
+        peopleRows.push({role, alloc:"add", resource:"", status:"", area:"", sen:"",
+          weekly:wk.map(v=>v>0?fmtNum(v):"")});
+      }
+      assignable-=take;
+    }
   });
 
   renderHead();
@@ -597,10 +647,10 @@ function suggestAllocation(){
   peopleRows.forEach(r=>addRow(r));
   render();
 
-  const totH=Object.values(days).reduce((a,b)=>a+b,0)*HOURS_PER_DAY;
-  note.style.color = warnings.length? "var(--bad)":"var(--muted)";
-  note.textContent = `Suggested ${peopleRows.length} person-line(s) over ${N} week(s) for ${fmtNum(totH)}h.`
-    + (warnings.length? "  ⚠️ "+warnings.join(" "):"");
+  const totH=ROLES.reduce((a,r)=>a+(hoursByRole[r]||0),0);
+  note.style.color="var(--muted)";
+  note.textContent=`Suggested ${peopleRows.length} person-line(s) over ${N} week(s) for ${fmtNum(totH)}h.`
+    + (notes.length? "  "+notes.join(" "):"");
 }
 
 function generate(){
