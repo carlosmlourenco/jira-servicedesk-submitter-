@@ -240,8 +240,8 @@ function renderHead(){
   ["Name Suggestion","Days","Hours","FTE","ROLE"].forEach(c=>{
     const th=document.createElement("th"); th.textContent=c; head.appendChild(th); });
   const mkBtn=(txt,title,fn,danger)=>{ const b=document.createElement("button"); b.textContent=txt; b.title=title;
-    const bg=danger?"#fff":"var(--accent)", fg=danger?"var(--bad)":"var(--brand)", bd=danger?"1px solid var(--bad)":"none";
-    b.style.cssText=`margin-left:4px;padding:0 6px;font-weight:700;border:${bd};border-radius:4px;cursor:pointer;background:${bg};color:${fg};line-height:1.4`;
+    if(danger){ b.className="btn btn-danger"; b.style.cssText="margin-left:4px;padding:2px 8px"; }  // same CSS as the ✕
+    else { b.style.cssText="margin-left:4px;padding:0 6px;font-weight:700;border:none;border-radius:4px;cursor:pointer;background:var(--accent);color:var(--brand);line-height:1.4"; }
     b.addEventListener("click",fn); return b; };
   // week columns; the LAST week column also carries the "-" (remove last week) button
   weeks.forEach((w,idx)=>{
