@@ -180,21 +180,6 @@
     <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
   </fieldset>
 
-  <fieldset id="pirSection">
-    <legend>PIR — Time Logging &amp; BPE</legend>
-    <div class="scroll">
-      <table class="pir">
-        <caption class="sr-only">Planned days and hours per role, with the breakdown (BPE) per role</caption>
-        <thead><tr><th scope="col">Code</th><th scope="col">Days</th><th scope="col">Hours</th><th scope="col">BPE Hours per role</th></tr></thead>
-        <tbody id="pirBody"></tbody>
-        <tfoot><tr id="pirTotal"></tr></tfoot>
-      </table>
-    </div>
-    <div class="toolbar">
-      <span id="matchPill" class="pill ok" role="status" aria-live="polite">Total Values Match? —</span>
-    </div>
-  </fieldset>
-
   <div class="toolbar" id="actionBar" style="justify-content:center">
     <button class="btn btn-primary" id="download">⬇ Download CSV</button>
     <button class="btn btn-primary" id="generate" title="Generates a unique shareable link for this plan">🔗 Share</button>
@@ -415,18 +400,19 @@ function render(){
   });
   const gt=document.getElementById("gridTotal"); gt.innerHTML="";
   ["TOTAL",fmtNum(gd),fmtNum(gh),"","",...weeks.map(()=>""),""].forEach(c=>{const td=document.createElement("td");td.className="calc";td.textContent=c;gt.appendChild(td);});
-  // PIR section — BPE comes from the breakdown
-  const pb=document.getElementById("pirBody"); pb.innerHTML=""; let pd=0,ph=0;
+  // PIR section removed from the UI; keep pir totals for the CSV + match check.
+  const pb=document.getElementById("pirBody"); if(pb) pb.innerHTML=""; let pd=0,ph=0;
   PIR_ORDER.forEach(code=>{ const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
+    if(!pb) return;
     const b=bpe[code];
     const tr=document.createElement("tr");
     tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td><td>${b==null?"":fmtNum(b)}</td>`;
     pb.appendChild(tr);
   });
-  document.getElementById("pirTotal").innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td>`;
+  const pt=document.getElementById("pirTotal"); if(pt) pt.innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td>`;
   // Match = for EVERY role, allocated hours (grid) equal the breakdown (BPE).
   const match=rolesMatchBreakdown(pir);
-  const mp=document.getElementById("matchPill"); mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad");
+  const mp=document.getElementById("matchPill"); if(mp){ mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad"); }
   document.getElementById("warnings").textContent=warns.length?"⚠️ "+[...new Set(warns)].join("\n⚠️ "):"";
 }
 

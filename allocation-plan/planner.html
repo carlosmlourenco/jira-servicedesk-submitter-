@@ -170,21 +170,8 @@
     </div>
   </fieldset>
 
-  <fieldset>
-    <legend>PIR — Time Logging &amp; BPE</legend>
-    <div class="scroll">
-      <table class="pir">
-        <caption class="sr-only">Planned days and hours per role versus the BPE input</caption>
-        <thead><tr><th scope="col">Code</th><th scope="col">Days</th><th scope="col">Hours</th><th scope="col">BPE Hours (input)</th><th scope="col">AI Comment</th></tr></thead>
-        <tbody id="pirBody"></tbody>
-        <tfoot><tr id="pirTotal"></tr></tfoot>
-      </table>
-    </div>
-    <div class="toolbar"><span id="matchPill" class="pill ok" role="status" aria-live="polite">Total Values Match? —</span>
-      <span id="capPill" class="pill ok" role="status" aria-live="polite">Allocated — / — h</span></div>
-  </fieldset>
-
   <div class="toolbar">
+    <span id="capPill" class="pill ok" role="status" aria-live="polite">Allocated — / — h</span>
     <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
     <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
   </div>
@@ -589,23 +576,10 @@ function render(){
   // total
   const gt=document.getElementById("gridTotal"); gt.innerHTML="";
   ["TOTAL",fmtNum(gd),fmtNum(gh),"","","","",...weeks.map(()=>"")].forEach(c=>{const td=document.createElement("td");td.className="calc";td.textContent=c;gt.appendChild(td);});
-  // PIR
-  const pb=document.getElementById("pirBody"); pb.innerHTML=""; let pd=0,ph=0;
-  PIR_ORDER.forEach(code=>{ const d=pir[code],h=d*HOURS_PER_DAY; pd+=d; ph+=h;
-    const b=bpe[code]; let cm=""; if(b!=null&&!isNaN(b)){ if(h<b)cm="hours missing"; else if(h>b)cm="exceed"; }
-    const tr=document.createElement("tr"); tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td>`;
-    const bt=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px"; bi.setAttribute("aria-label", code+" BPE hours");
-    if(b!=null)bi.value=b; bi.addEventListener("input",()=>{const v=parseFloat(bi.value); if(bi.value==="")delete bpe[code]; else bpe[code]=v; render();});
-    bt.appendChild(bi); tr.appendChild(bt);
-    const ct=document.createElement("td"); ct.textContent=cm; if(cm)ct.style.color=cm==="exceed"?"#c0392b":"#b8860b"; tr.appendChild(ct);
-    pb.appendChild(tr);
-  });
-  document.getElementById("pirTotal").innerHTML=`<td>Total</td><td>${fmtNum(pd)}</td><td>${fmtNum(ph)}</td><td></td><td></td>`;
-  const match=Math.round(gh*1e6)===Math.round(ph*1e6);
-  const mp=document.getElementById("matchPill"); mp.textContent="Total Values Match? "+(match?"TRUE":"FALSE"); mp.className="pill "+(match?"ok":"bad");
+  // PIR section removed from the UI; keep the allocated-vs-cap pill.
   const cp=document.getElementById("capPill"); const capv=parseFloat(document.getElementById("totalHours").value)||0;
-  cp.textContent=`Allocated ${fmtNum(Math.round(gh*100)/100)} / ${fmtNum(capv)} h`;
-  cp.className="pill "+(gh<=capv+1e-6?"ok":"bad");
+  if(cp){ cp.textContent=`Allocated ${fmtNum(Math.round(gh*100)/100)} / ${fmtNum(capv)} h`;
+    cp.className="pill "+(gh<=capv+1e-6?"ok":"bad"); }
   document.getElementById("warnings").textContent=warns.length?"⚠️ "+[...new Set(warns)].join("\n⚠️ "):"";
 }
 

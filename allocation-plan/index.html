@@ -116,7 +116,6 @@
       <b>Hours</b> = days × 8. <b>FTE</b> = average of filled weeks ÷ 5.
       PIR groups roles: DS = Data Scientist + Data Analyst; RiskC = Risk Consultant + Risk&amp;AI Manager;
       ENG (TS) = Software Engineer + Technical Lead + Solution Architect + Engineering Manager.
-      <b>AI Comment</b>: planned &lt; BPE → "hours missing"; &gt; BPE → "exceed". <b>Match?</b> = grid total hours == PIR total hours.
     </div>
   </details>
 
@@ -145,21 +144,6 @@
       <span class="muted" style="font-size:12px">Weeks are generated from the start/end dates.</span>
     </div>
     <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
-  </fieldset>
-
-  <fieldset>
-    <legend>PIR — Time Logging &amp; BPE</legend>
-    <div class="scroll">
-      <table class="pir">
-        <caption class="sr-only">Planned days and hours per role versus the BPE input</caption>
-        <thead><tr><th scope="col">Code</th><th scope="col">Days</th><th scope="col">Hours</th><th scope="col">BPE Hours (input)</th><th scope="col">AI Comment</th></tr></thead>
-        <tbody id="pirBody"></tbody>
-        <tfoot><tr id="pirTotal"></tr></tfoot>
-      </table>
-    </div>
-    <div class="toolbar">
-      <span id="matchPill" class="pill ok" role="status" aria-live="polite">Total Values Match? —</span>
-    </div>
   </fieldset>
 
   <div class="toolbar">
@@ -303,28 +287,7 @@ function recompute(){
   const tcells=["TOTAL",fmtNum(gridDays),gridHours.toFixed(0),"","","","",...weeks.map(()=>""),""];
   tcells.forEach((c,i)=>{ const td=document.createElement("td"); td.className="calc"; td.textContent=c; gt.appendChild(td); });
 
-  // PIR
-  const pb=document.getElementById("pirBody"); pb.innerHTML="";
-  let pirD=0,pirH=0;
-  PIR_ORDER.forEach(code=>{
-    const d=pirDays[code], h=d*HOURS_PER_DAY; pirD+=d; pirH+=h;
-    const b=bpe[code]; let comment="";
-    if(b!=null&&!isNaN(b)){ if(h<b)comment="hours missing"; else if(h>b)comment="exceed"; }
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${code}</td><td>${fmtNum(d)}</td><td>${fmtNum(h)}</td>`;
-    const bTd=document.createElement("td"); const bi=document.createElement("input"); bi.type="number"; bi.style.width="90px"; bi.setAttribute("aria-label", code+" BPE hours");
-    if(b!=null) bi.value=b; bi.addEventListener("input",()=>{ const v=parseFloat(bi.value); if(bi.value==="")delete bpe[code]; else bpe[code]=v; recompute(); });
-    bTd.appendChild(bi); tr.appendChild(bTd);
-    const cTd=document.createElement("td"); cTd.textContent=comment; if(comment)cTd.style.color= comment==="exceed"?"#c0392b":"#b8860b"; tr.appendChild(cTd);
-    pb.appendChild(tr);
-  });
-  const pt=document.getElementById("pirTotal"); pt.innerHTML=`<td>Total</td><td>${fmtNum(pirD)}</td><td>${fmtNum(pirH)}</td><td></td><td></td>`;
-
-  const match = Math.round(gridHours*1e6)===Math.round(pirH*1e6);
-  const pill=document.getElementById("matchPill");
-  pill.textContent="Total Values Match? "+(match?"TRUE":"FALSE");
-  pill.className="pill "+(match?"ok":"bad");
-
+  // PIR section removed from the UI; pirDays is still computed above for the CSV.
   document.getElementById("warnings").textContent = warnings.length? "⚠️ "+[...new Set(warnings)].join("\n⚠️ "):"";
 }
 
