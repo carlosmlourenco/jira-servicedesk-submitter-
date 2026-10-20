@@ -56,11 +56,6 @@
   /* Native selects size differently per-OS; keep them from overflowing their cell. */
   td select { -webkit-appearance:menulist; appearance:menulist; }
   td.wk input { width:52px; }
-  /* Holiday-reduced week: light amber tint (same as the auto-planner). */
-  td.wk.hol { background:#fff4e0; }
-  th.hol { background:#7d6a2f; }   /* darker amber header over the brand green */
-  .legendbar { display:flex; gap:14px; align-items:center; font-size:12px; color:var(--muted); margin:8px 0 0; }
-  .legendbar .sw { display:inline-block; width:14px; height:14px; border-radius:3px; border:1px solid var(--line); vertical-align:-2px; margin-right:5px; }
   td.meta input, td.meta select { min-width:120px; text-align:left; }
   /* Invalid field: red border + tinted background. Colour is never the only cue —
      the error text in #warnings and aria-invalid/aria-describedby carry it too. */
@@ -156,7 +151,6 @@
     <legend>Project</legend>
     <div class="hdr-grid">
       <div><label for="projName">Project name</label><input id="projName" placeholder="project name"></div>
-      <div><label for="region">Region</label><select id="region" aria-label="Project region"></select></div>
       <div><label for="startDate">Start date</label><input id="startDate" type="date"></div>
       <div><label for="durationWeeks">Duration (weeks)</label><input id="durationWeeks" type="number" step="1" min="1" placeholder="e.g. 8"></div>
       <input id="endDate" type="hidden">
@@ -208,7 +202,6 @@
       <button class="btn btn-ghost" id="addRow" title="Adds a line for a new person">+ Add person</button>
       <span class="muted" style="font-size:12px">Weeks generated from the dates. Values in hours/week.</span>
     </div>
-    <div class="legendbar"><span class="sw" style="background:#fff4e0"></span>holiday-reduced week (weekly cap reduced to 80% for Portugal public holidays)</div>
     <div class="warn" id="warnings" role="alert" aria-live="assertive"></div>
   </fieldset>
 
@@ -298,13 +291,8 @@ const STAFFING_STATUS=[
 ];
 // Allocation Type options (one per line; default "add").
 const ALLOC_TYPES=["add","remove","split","swap"];
-// Preferred Area options (mandatory before Submit). Also used for the project Region.
+// Preferred Area options (mandatory before Submit).
 const PREFERRED_AREAS=["APAC","EMEA","LATAM","NAMER","GDC","Partner"];
-// Portugal public holidays only make sense for PT-staffed regions. The holiday
-// 80% reduction + highlight apply ONLY when the project Region is one of these.
-const HOLIDAY_REGIONS=new Set(["EMEA","GDC","Partner"]);
-function currentRegion(){ const el=document.getElementById("region"); return el?el.value:""; }
-function regionUsesHolidays(){ return HOLIDAY_REGIONS.has(currentRegion()); }
 // Preferred Seniority options (optional).
 const PREFERRED_SENIORITIES=[
   "Associate","Professional","Senior Professional","Advanced","Expert",
@@ -312,7 +300,6 @@ const PREFERRED_SENIORITIES=[
 ];
 
 let weeks=[];           // [{mon:Date,label:"dd/mm"}]
-let holidayWeeks=new Set(); // week indices that contain a PT national holiday
 let gridRows=[];        // [{name,role,alloc,status,area,sen,weekly:[...]}]
 const bpe={};           // role name -> hours (from breakdown)
 let currentPlanId=null;
@@ -323,39 +310,6 @@ function lbl(d){return pad(d.getDate())+"/"+pad(d.getMonth()+1);}
 function parseISO(s){ if(!s) return null; const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
 function mondayOf(d){ const x=new Date(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); return x; }
 function fmtNum(n){ if(n===null||n===undefined||isNaN(n)) return ""; const r=Math.round(n*100)/100; return r%1===0?String(r):r.toString(); }
-function sameDay(a,b){ return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
-
-// ---------- Portugal national holidays (same approach as the auto-planner) ----------
-// Easter via the Anonymous Gregorian algorithm (used for the movable feasts).
-function easter(year){
-  const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,
-    f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,
-    i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
-    mon=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
-  return new Date(year,mon-1,day);
-}
-// PT national holidays for a year (no municipal, since the PIR form has no city).
-function nationalHolidays(year){
-  const fixed=[[1,1],[4,25],[5,1],[6,10],[8,15],[10,5],[11,1],[12,1],[12,8],[12,25]];
-  const list=fixed.map(([m,d])=>new Date(year,m-1,d));
-  const eas=easter(year);
-  const goodFri=new Date(eas); goodFri.setDate(eas.getDate()-2);
-  const corpus=new Date(eas);  corpus.setDate(eas.getDate()+60); // Corpus Christi = Easter+60
-  list.push(goodFri, new Date(eas), corpus);
-  return list;
-}
-// National holidays spanning the years covered by the current `weeks`.
-function holidaysForWeeks(){
-  const out=[]; new Set(weeks.map(w=>w.mon.getFullYear())).forEach(y=>nationalHolidays(y).forEach(h=>out.push(h)));
-  return out;
-}
-// Count weekday (Mon–Fri) holidays that fall inside the week starting at `mon`.
-function holidayDaysInWeek(mon, hols){
-  let c=0;
-  for(let i=0;i<5;i++){ const day=new Date(mon); day.setDate(mon.getDate()+i);
-    if(hols.some(h=>sameDay(h,day))) c++; }
-  return c;
-}
 
 function buildWeeks(){
   const s=parseISO(document.getElementById("startDate").value);
@@ -435,23 +389,13 @@ function addRow(data){
   // Preferred Area (mandatory before Submit) / Preferred Seniority (optional)
   const areaTd=document.createElement("td"); areaTd.className="meta area"; areaTd.appendChild(makeAreaSelect(data.area)); tr.appendChild(areaTd);
   const senTd=document.createElement("td"); senTd.className="meta sen"; senTd.appendChild(makeSenioritySelect(data.sen)); tr.appendChild(senTd);
-  weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk"+(holidayWeeks.has(idx)?" hol":"");
-    if(holidayWeeks.has(idx)) td.title="Holiday-reduced week (cap reduced to 80%)";
-    td.appendChild(weekInput(data.weekly?data.weekly[idx]:"", `Week ${w.label} hours`+(holidayWeeks.has(idx)?" (holiday-reduced)":""))); tr.appendChild(td); });
+  weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk";
+    td.appendChild(weekInput(data.weekly?data.weekly[idx]:"", `Week ${w.label} hours`)); tr.appendChild(td); });
   const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.type="button"; rm.className="btn btn-danger"; rm.textContent="✕";
   rm.title="Removes the line"; rm.setAttribute("aria-label","Remove this person"); rm.style.padding="2px 8px"; rm.addEventListener("click",()=>{tr.remove();render();}); rmTd.appendChild(rm); tr.appendChild(rmTd);
   document.getElementById("gridBody").appendChild(tr);
 }
-// Recompute which weeks contain a PT national holiday (keeps the highlight and
-// the reduced cap in sync whenever the week window changes).
-function recomputeHolidayWeeks(){
-  holidayWeeks=new Set();
-  if(!regionUsesHolidays()) return;   // only EMEA / GDC / Partner use PT holidays
-  const hols=holidaysForWeeks();
-  weeks.forEach((w,i)=>{ if(holidayDaysInWeek(w.mon,hols)>0) holidayWeeks.add(i); });
-}
 function renderHead(){
-  recomputeHolidayWeeks();
   const head=document.getElementById("gridHead"); head.innerHTML="";
   // fixed columns
   ["Total Days","Total Hours","FTE","Role","Allocation Type","Suggested Resource (Optional)","Staffing Validation Status","Preferred Area","Preferred Seniority"].forEach(c=>{
@@ -463,7 +407,6 @@ function renderHead(){
   // week columns; the LAST week column also carries the "-" (remove last week) button
   weeks.forEach((w,idx)=>{
     const th=document.createElement("th"); th.scope="col";
-    if(holidayWeeks.has(idx)){ th.classList.add("hol"); th.title="Holiday-reduced week (cap reduced to 80%)"; }
     if(idx===weeks.length-1){
       th.innerHTML=`<span style="vertical-align:middle">${w.label}</span>`;
       th.appendChild(mkBtn("−","Removes a week",removeWeek,true));   // red
@@ -610,7 +553,7 @@ function encodeState(obj){ const j=JSON.stringify(obj); const b=btoa(unescape(en
 function decodeState(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4)s+="="; return JSON.parse(decodeURIComponent(escape(atob(s)))); }
 function buildState(){
   return { v:2,
-    project:{ name:document.getElementById("projName").value, region:currentRegion(),
+    project:{ name:document.getElementById("projName").value,
       start:document.getElementById("startDate").value,
       end:document.getElementById("endDate").value, duration:document.getElementById("durationWeeks").value },
     weeks:weeks.map(w=>w.label),
@@ -642,30 +585,21 @@ function copyShareLink(){
 // Internal spread works in HOURS on a 2h grid (MIN_H=2, STEP_H=2).
 // Each role honours: a per-role weekly cap (hours), a people cap, and never
 // allocates more than the breakdown. Hours that do not fit are left unassigned.
-// A week that contains a public holiday loses one of five working days, so its
-// cap is reduced to 80% of the role's normal weekly cap (floored to the 2h step).
-const HOLIDAY_FACTOR=0.8;
-function reducedCapH(baseCapH){ return Math.floor((baseCapH*HOLIDAY_FACTOR)/STEP_H)*STEP_H; }
-// Distribute `personHours` flat across `weekIdx` weeks (an array of week indices)
-// on a 2h grid. `capForWeek(i)` gives the per-week cap in hours (lower on holiday
-// weeks). Returns a full N-length array (hours), zeros outside the selected weeks.
-// Never exceeds personHours (floors to the 2h step).
-function distributeHours(personHours, N, weekIdx, capForWeek){
+// Distribute `personHours` flat across `weekIdx` weeks (an array of week indices,
+// length Wsel) on a 2h grid, capped at `weekCapH` per week. Returns a full
+// N-length array (hours) with zeros outside the selected weeks. Never exceeds
+// personHours (floors to the 2h step).
+function distributeHours(personHours, N, weekIdx, weekCapH){
   const wk=new Array(N).fill(0);
   const Wsel=weekIdx.length; if(Wsel<=0) return wk;
-  const capUnits=i=>Math.floor(capForWeek(i)/STEP_H);    // max 2h units for week i
+  const capUnits=Math.floor(weekCapH/STEP_H);            // max 2h units/week
   let units=Math.floor(personHours/STEP_H + 1e-9);        // total 2h units to place
   if(units<=0) return wk;
-  const maxUnits=weekIdx.reduce((a,i)=>a+capUnits(i),0);  // total capacity over selected weeks
-  if(units>maxUnits) units=maxUnits;
-  // Fill flat: repeatedly add one 2h unit to each eligible week until used up.
-  let k=0, guard=0;
-  while(units>0 && guard++<100000){
-    const i=weekIdx[k%Wsel];
-    if(Math.round(wk[i]/STEP_H)+1<=capUnits(i)){ wk[i]=Math.round((wk[i]+STEP_H)*100)/100; units--; }
-    k++;
-    if(k%Wsel===0 && weekIdx.every(i=>Math.round(wk[i]/STEP_H)>=capUnits(i))) break; // all full
-  }
+  const maxUnits=capUnits*Wsel; if(units>maxUnits) units=maxUnits;  // cannot exceed cap over selected weeks
+  const base=Math.floor(units/Wsel); let rem=units-base*Wsel;
+  weekIdx.forEach(i=>{ wk[i]=base*STEP_H; });
+  let k=0;
+  while(rem>0){ const i=weekIdx[k%Wsel]; if(Math.round(wk[i]/STEP_H)+1<=capUnits){ wk[i]=Math.round((wk[i]+STEP_H)*100)/100; rem--; } k++; }
   return wk.map(v=>Math.round(v*100)/100);
 }
 function suggestAllocation(){
@@ -706,10 +640,6 @@ function suggestAllocation(){
   const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   document.getElementById("endDate").value=iso(endFri);
 
-  // Mark weeks that contain a PT national holiday (cap reduced to 80% there).
-  // Only for PT-staffed regions (EMEA / GDC / Partner); other regions: no holidays.
-  recomputeHolidayWeeks();
-
   const allIdx=Array.from({length:N},(_, i)=>i);
   const peopleRows=[]; const leftovers=[];   // {role, hours} that could not be placed
   ROLES.forEach(role=>{
@@ -727,23 +657,19 @@ function suggestAllocation(){
       const lightCapTotal=LIGHT_TOUCH_DEFAULT_H*Wsel;     // hours if we stay at 2h/week
       weekCapH = (total>lightCapTotal) ? roleWeekCapH(role) : LIGHT_TOUCH_DEFAULT_H;
     }
-    // Per-week cap: holiday weeks are reduced to 80% of this role's cap.
-    const capForWeek=i=>holidayWeeks.has(i)?reducedCapH(weekCapH):weekCapH;
-    // One person's capacity over the selected weeks (holiday weeks count less).
-    const perPersonMax=weekIdx.reduce((a,i)=>a+capForWeek(i),0);
-    // People: enough to carry the hours at the (holiday-aware) weekly caps.
-    let nppl=perPersonMax>0?Math.ceil(total/perPersonMax):1; if(nppl<1) nppl=1; if(nppl>capPeople) nppl=capPeople;
+    // People: enough to carry the hours at <= weekCapH/week, capped by capPeople.
+    const perPersonMax=weekCapH*Wsel;
+    let nppl=Math.ceil(total/perPersonMax); if(nppl<1) nppl=1; if(nppl>capPeople) nppl=capPeople;
     const capacity=perPersonMax*nppl;
     let assignable=Math.min(total, capacity);             // leftover (total-assignable) is dropped
     // split assignable across the people, each filled up to its own capacity
     let placed=0;
     for(let p=0;p<nppl && assignable>=MIN_H; p++){
       const take=Math.min(assignable, perPersonMax);
-      const wk=distributeHours(take, N, weekIdx, capForWeek);
+      const wk=distributeHours(take, N, weekIdx, weekCapH);
       const sum=wk.reduce((a,b)=>a+b,0); placed+=sum;
       if(sum>0){
-        // Pre-fill Preferred Area from the project Region (editable afterwards).
-        peopleRows.push({role, alloc:"add", resource:"", status:"", area:currentRegion(), sen:"",
+        peopleRows.push({role, alloc:"add", resource:"", status:"", area:"", sen:"",
           weekly:wk.map(v=>v>0?fmtNum(v):"")});
       }
       assignable-=take;
@@ -778,7 +704,6 @@ function generate(){
 }
 function renderFromState(state){
   document.getElementById("projName").value=state.project.name||"";
-  populateRegion(); document.getElementById("region").value=state.project.region||"";
   document.getElementById("startDate").value=state.project.start||"";
   document.getElementById("endDate").value=state.project.end||"";
   document.getElementById("durationWeeks").value=state.project.duration||"";
@@ -914,21 +839,7 @@ function revealAll(){
   setHidden("peopleSection", false); setHidden("actionBar", false);
 }
 
-// Fill the Region dropdown (same options as Preferred Area) once.
-function populateRegion(){
-  const sel=document.getElementById("region"); if(!sel||sel.dataset.filled) return;
-  sel.dataset.filled="1";
-  const blank=document.createElement("option"); blank.value=""; blank.textContent="—"; sel.appendChild(blank);
-  PREFERRED_AREAS.forEach(a=>{ const o=document.createElement("option"); o.value=a; o.textContent=a; sel.appendChild(o); });
-}
-// Changing the Region re-evaluates holiday weeks (highlight + reduced caps).
-document.getElementById("region").addEventListener("change",()=>{ renderHead();
-  // keep each row's week cells after a head rebuild
-  const existing=collect(); document.getElementById("gridBody").innerHTML="";
-  existing.forEach(r=>addRow(r)); render(); });
-
 (function(){
-  populateRegion();
   renderBreakdown();
   setupExpandToggle();
   if(tryLoadFromURL()){ revealAll(); return; }   // shared link shows the full plan

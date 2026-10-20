@@ -10,7 +10,7 @@
 > *O texto portugues omite acentos e cedilha de proposito, para evitar problemas
 > de codificacao.*
 >
-> Ultima atualizacao: 2026-09-14 (regras por role; 13 roles; aviso de horas por alocar; dropdowns Preferred Area/Seniority; semanas com feriado por Region + auto-fill de area)
+> Ultima atualizacao: 2026-09-14 (regras por role; 13 roles; aviso de horas por alocar; dropdowns Preferred Area/Seniority; removidas regras de Region + feriados)
 
 ---
 
@@ -27,8 +27,6 @@
 | Duracao | **N semanas** (campo *Duration*) | A alocacao espalha-se de forma **plana** pelas N semanas, a partir da *Start date*. A *End date* e derivada. |
 | Nunca excede o breakdown | ✔️ | A sugestao nunca aloca **mais** horas do que o breakdown da role. |
 | Horas que nao cabem | **nao aloca + avisa** | As sobras ficam **por atribuir** e e mostrado um **aviso** na seccao *People* com a role e as horas por alocar. |
-| Semana com feriado | **cap x 80% (so EMEA/GDC/Partner)** | Uma semana com um feriado nacional portugues perde um de cinco dias uteis, por isso **o teto semanal de todas as roles e reduzido para 80%** nessa semana (arredondado para baixo ao passo de 2 h): ex. 32 h -> 24 h, 16 h -> 12 h, 8 h -> 6 h. Essas semanas ficam levemente destacadas (ambar) na grelha. Usa feriados nacionais PT (datas fixas + Sexta-feira Santa, Pascoa, Corpo de Deus). **So se aplica quando a Region do projeto e EMEA, GDC ou Partner** (equipa PT). APAC/LATAM/NAMER: sem reducao, sem destaque. |
-| Region do projeto | topo do formulario | Um dropdown **Region** (mesmas opcoes que Preferred Area) fica ao lado do Project name. Conduz a regra de feriados acima e pre-preenche a Preferred Area de cada linha sugerida (editavel depois). |
 
 ### Spread interno (como a sugestao distribui por pessoa)
 
@@ -53,7 +51,6 @@
 
 - **Preferred Area** (dropdown, **obrigatorio antes de Submit**): `APAC` · `EMEA` · `LATAM` · `NAMER` · `GDC` · `Partner`.
   O Submit e bloqueado com um aviso se alguma linha alocada (com horas semanais) nao tiver area.
-  O Suggest pre-preenche a partir da Region do projeto; fica editavel por linha.
 - **Preferred Seniority** (dropdown, **opcional**): `Associate` · `Professional` · `Senior Professional` · `Advanced` · `Expert` · `Principal` · `Senior Principal` · `Manager` · `Senior Manager` · `Director` · `Senior Director`.
 
 ---
