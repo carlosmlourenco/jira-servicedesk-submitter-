@@ -23,7 +23,11 @@
     display:inline-flex; align-items:center; justify-content:center; color:var(--brand); font-weight:800; font-size:15px; }
   .brandbar .name { font-weight:700; letter-spacing:.2px; }
   .brandbar .tag { color:var(--accent); font-size:12px; font-weight:600; }
-  .wrap { padding:24px; }
+  /* min-width:0 lets these flow containers shrink to the viewport instead of
+     stretching to the wide grid's content width (which, on Windows Chrome, let
+     the table overflow and get clipped at 100% zoom). */
+  .wrap { padding:24px; min-width:0; max-width:100%; }
+  fieldset, #peopleSection { min-width:0; }
   h1 { font-size:20px; margin:0 0 4px; color:var(--brand); }
   .sub { color:var(--muted); font-size:13px; margin-bottom:18px; }
   fieldset { border:1px solid var(--line); border-radius:10px; margin:0 0 18px; padding:14px 16px; background:#fff; }
@@ -110,8 +114,10 @@
   .nav-menu a:hover, .nav-menu a:focus { background:var(--grey); color:var(--brand); }
   .nav-menu a[aria-current="page"] { background:var(--accent); color:var(--brand); }
   /* responsive: keep the page from scrolling sideways; only tables scroll */
-  html, body { max-width:100%; overflow-x:hidden; }
-  .scroll { max-width:100%; }
+  html, body { width:100%; max-width:100%; overflow-x:hidden; }
+  /* main is the flow container for everything; bound it to the viewport so the
+     grid's horizontal scroll happens inside .scroll, not the page. */
+  main { max-width:100%; min-width:0; }
   @media (max-width:640px){
     .wrap { padding:16px 12px; }
     .brandbar { padding:12px 14px; }
