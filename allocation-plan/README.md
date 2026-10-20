@@ -1,6 +1,6 @@
 # PIR — Project Initiation Request
 
-A single-page browser tool (`pir.html`) to plan project resource allocation and
+A single-page browser tool (`index.html`) to plan project resource allocation and
 submit a **Project Initiation Request** to the Jira Service Desk. You define the
 project, the total hours per role, and the people with their weekly allocation;
 the tool computes every derived value, generates the CSV attachment, a shareable
@@ -8,8 +8,8 @@ link, and can submit directly to Jira.
 
 ## Files
 
-- **`pir.html`** — the tool. Open it in a browser (locally or served).
-- **`submit-pir.js`** — the submit widget used by `pir.html`.
+- **`index.html`** — the tool. Open it in a browser (locally or served).
+- **`submit-pir.js`** — the submit widget used by `index.html`.
 - **`server/server.py`** — local backend for the Jira submission (OAuth + the
   `/api/submit` endpoint). See `server/README.md`.
 - **`ALLOCATION-RULES.md`** / **`ALLOCATION-RULES-PT.md`** — the allocation rules
@@ -37,12 +37,12 @@ link, and can submit directly to Jira.
 
 ## Running locally
 
-Open `pir.html` directly in a browser for planning and CSV/export. For the
+Open `index.html` directly in a browser for planning and CSV/export. For the
 **Submit PIR** flow (Jira), run the local backend and open the served page:
 
 ```bash
 cd server
-python3 server.py            # serves http://localhost:8723/pir.html
+python3 server.py            # serves http://localhost:8723/ (index.html)
 ```
 
 Configuration (service desk / request type IDs, field IDs, OAuth) lives in the

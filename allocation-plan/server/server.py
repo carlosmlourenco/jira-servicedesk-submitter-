@@ -210,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
     # ---- static file serving (the HTML tools) ----
     def serve_static(self, route):
         if route == "/" or route == "":
-            route = "/pir.html"
+            route = "/index.html"
         rel = route.lstrip("/")
         full = os.path.normpath(os.path.join(WEB_DIR, rel))
         if not full.startswith(WEB_DIR) or not os.path.isfile(full):
@@ -254,7 +254,7 @@ class Handler(BaseHTTPRequestHandler):
         except HTTPError as e:
             return self._send(502, f"Token exchange failed: {e.read().decode('utf-8','replace')}", "text/plain")
         # back to the app
-        self.send_response(302); self.send_header("Location", "/pir.html?auth=ok"); self.end_headers()
+        self.send_response(302); self.send_header("Location", "/index.html?auth=ok"); self.end_headers()
 
     # ---- small APIs ----
     def handle_me(self):

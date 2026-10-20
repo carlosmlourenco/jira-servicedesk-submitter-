@@ -23,7 +23,7 @@ authenticated API calls on their behalf.
 ```bash
 cd allocation-plan/server
 python3 server.py
-# then open http://localhost:8723/pir.html
+# then open http://localhost:8723/ (index.html)
 ```
 
 (`certifi` is used if present, for TLS on macOS python.org Python. The project

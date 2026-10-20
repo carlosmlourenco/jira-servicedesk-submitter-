@@ -1,9 +1,9 @@
 # Regras de Alocacao de Roles — PIR
 
-> Este ficheiro documenta **todas as regras de alocacao** que o `pir.html` aplica
+> Este ficheiro documenta **todas as regras de alocacao** que o `index.html` aplica
 > na funcionalidade **✨ Suggest allocation** e ao preencher a grelha de pessoas.
 > E a fonte de verdade legivel por humanos, mantida em sincronia com
-> `allocation-plan/pir.html`.
+> `allocation-plan/index.html`.
 >
 > Versao em ingles: [`ALLOCATION-RULES.md`](ALLOCATION-RULES.md)
 >

@@ -1,8 +1,8 @@
 # Role Allocation Rules — PIR
 
-> This file documents **all allocation rules** that `pir.html` applies in the
+> This file documents **all allocation rules** that `index.html` applies in the
 > **✨ Suggest allocation** feature and when filling the people grid. It is the
-> human-readable source of truth, kept in sync with `allocation-plan/pir.html`.
+> human-readable source of truth, kept in sync with `allocation-plan/index.html`.
 >
 > Portuguese version: [`ALLOCATION-RULES-PT.md`](ALLOCATION-RULES-PT.md)
 >

@@ -1,6 +1,6 @@
 # TL;DR — PIR (Project Initiation Request)
 
-Ferramenta de pagina unica no browser (`pir.html`) para planear a alocacao de
+Ferramenta de pagina unica no browser (`index.html`) para planear a alocacao de
 recursos de um projeto e submeter um **Project Initiation Request** ao Jira
 Service Desk. Faz os calculos todos automaticamente.
 
@@ -23,12 +23,12 @@ Service Desk. Faz os calculos todos automaticamente.
 
 ## Como se usa
 
-Abre `pir.html` no browser para planear e exportar. Para o **Submit PIR** (Jira),
+Abre `index.html` no browser para planear e exportar. Para o **Submit PIR** (Jira),
 corre o backend local e abre a pagina servida:
 
 ```bash
 cd server
-python3 server.py            # serve http://localhost:8723/pir.html
+python3 server.py            # serve http://localhost:8723/ (index.html)
 ```
 
 A configuracao (IDs do service desk / request type, campos, OAuth) esta no
