@@ -269,6 +269,13 @@ const STAFFING_STATUS=[
 ];
 // Allocation Type options (one per line; default "add").
 const ALLOC_TYPES=["add","remove","split","swap"];
+// Preferred Area options (mandatory before Submit).
+const PREFERRED_AREAS=["APAC","EMEA","LATAM","NAMER","GDC","Partner"];
+// Preferred Seniority options (optional).
+const PREFERRED_SENIORITIES=[
+  "Associate","Professional","Senior Professional","Advanced","Expert",
+  "Principal","Senior Principal","Manager","Senior Manager","Director","Senior Director"
+];
 
 let weeks=[];           // [{mon:Date,label:"dd/mm"}]
 let gridRows=[];        // [{name,role,alloc,status,area,sen,weekly:[...]}]
@@ -338,6 +345,8 @@ function makeSelect(options, val, ariaLabel, placeholder){
 function makeRoleSelect(val){ return makeSelect(ROLES, val, "Role", "—"); }
 function makeAllocSelect(val){ return makeSelect(ALLOC_TYPES, val||"add", "Allocation Type", null); }
 function makeStatusSelect(val){ return makeSelect(STAFFING_STATUS, val, "Staffing Validation Status", "—"); }
+function makeAreaSelect(val){ return makeSelect(PREFERRED_AREAS, val, "Preferred Area", "—"); }
+function makeSenioritySelect(val){ return makeSelect(PREFERRED_SENIORITIES, val, "Preferred Seniority", "—"); }
 function weekInput(v,label){ const i=document.createElement("input"); i.type="number"; i.step=String(STEP_H); i.min="0"; i.max=String(MAX_H);
   if(label) i.setAttribute("aria-label",label);
   if(v!=null&&v!=="") i.value=v; i.addEventListener("input",render); return i; }
@@ -355,13 +364,9 @@ function addRow(data){
   resTd.appendChild(resI); tr.appendChild(resTd);
   // Staffing Validation Status
   const statusTd=document.createElement("td"); statusTd.className="meta status"; statusTd.appendChild(makeStatusSelect(data.status)); tr.appendChild(statusTd);
-  // Preferred Area / Preferred Seniority
-  const areaTd=document.createElement("td"); areaTd.className="meta area";
-  const areaI=document.createElement("input"); areaI.placeholder="Area"; areaI.setAttribute("aria-label","Preferred area"); areaI.value=data.area||""; areaI.addEventListener("input",render);
-  areaTd.appendChild(areaI); tr.appendChild(areaTd);
-  const senTd=document.createElement("td"); senTd.className="meta sen";
-  const senI=document.createElement("input"); senI.placeholder="Seniority"; senI.setAttribute("aria-label","Preferred seniority"); senI.value=data.sen||""; senI.addEventListener("input",render);
-  senTd.appendChild(senI); tr.appendChild(senTd);
+  // Preferred Area (mandatory before Submit) / Preferred Seniority (optional)
+  const areaTd=document.createElement("td"); areaTd.className="meta area"; areaTd.appendChild(makeAreaSelect(data.area)); tr.appendChild(areaTd);
+  const senTd=document.createElement("td"); senTd.className="meta sen"; senTd.appendChild(makeSenioritySelect(data.sen)); tr.appendChild(senTd);
   weeks.forEach((w,idx)=>{ const td=document.createElement("td"); td.className="wk";
     td.appendChild(weekInput(data.weekly?data.weekly[idx]:"", `Week ${w.label} hours`)); tr.appendChild(td); });
   const rmTd=document.createElement("td"); const rm=document.createElement("button"); rm.type="button"; rm.className="btn btn-danger"; rm.textContent="✕";
@@ -425,8 +430,8 @@ function rowData(tr){
   let status=selVal(tr,"td.meta.status select");
   const resource=selVal(tr,"td.meta.res input");
   if(!(resource||"").trim()) status=OPEN_DEMAND;   // empty resource => Open Demand
-  const area=selVal(tr,"td.meta.area input");
-  const sen=selVal(tr,"td.meta.sen input");
+  const area=selVal(tr,"td.meta.area select");
+  const sen=selVal(tr,"td.meta.sen select");
   const weekly=[]; tr.querySelectorAll("td.wk input").forEach(i=>weekly.push(i.value));
   return {role, alloc, resource, status, area, sen, weekly};
 }
@@ -737,8 +742,22 @@ document.getElementById("loadExample").addEventListener("click",loadExample);
 const PIR_PORTAL_URL = window.PIR_PORTAL_URL
   || "https://fdz.atlassian.net/servicedesk/customer/portal/2065/group/2232/create/2866";
 function submitPir(){
-  // make sure we have an up-to-date shareable link (the justification)
+  // make sure we have an up-to-date shareable link (the justification) and that
+  // gridRows reflects the current grid.
   generate();
+  // Preferred Area is mandatory: block submit if any allocated row has no area.
+  const missingArea=gridRows.filter(r=>{
+    const hasHours=r.weekly.some(v=>(parseFloat(v)||0)>0);
+    return hasHours && !(r.area||"").trim();
+  });
+  if(missingArea.length){
+    const roles=[...new Set(missingArea.map(r=>r.role||"(no role)"))];
+    const w=document.getElementById("warnings");
+    const msg=`Preferred Area is mandatory before submitting. Set it for: ${roles.join(", ")}.`;
+    w.textContent=(w.textContent?w.textContent+"\n":"")+"⚠️ "+msg;
+    w.scrollIntoView&&w.scrollIntoView({behavior:"smooth",block:"center"});
+    return;   // do not open the submit dialog
+  }
   const proj=(document.getElementById("projName").value||"").trim()||"(unnamed project)";
   let totalH=0; ROLES.forEach(r=>{ if(bpe[r]!=null&&!isNaN(bpe[r])) totalH+=bpe[r]; });
   const url=(document.getElementById("copyLink").dataset.url)||location.href;
