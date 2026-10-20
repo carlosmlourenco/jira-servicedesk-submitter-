@@ -6,7 +6,7 @@
 >
 > Portuguese version: [`ALLOCATION-RULES-PT.md`](ALLOCATION-RULES-PT.md)
 >
-> Last updated: 2026-09-14 (per-role rules; 13 roles; unallocated-hours warning; Preferred Area/Seniority dropdowns)
+> Last updated: 2026-09-14 (per-role rules; 13 roles; unallocated-hours warning; Preferred Area/Seniority dropdowns; holiday-reduced weeks)
 
 ---
 
@@ -23,6 +23,7 @@
 | Duration | **N weeks** (*Duration* field) | Allocation is spread **flat** across the N weeks, starting at the *Start date*. The *End date* is derived. |
 | Never exceeds the breakdown | ✔️ | The suggestion never allocates **more** hours than the role's breakdown. |
 | Hours that do not fit | **not allocated + warning** | Surplus hours are **left unassigned** and a **warning** is shown in the *People* section naming the role and the hours left over. |
+| Holiday-reduced week | **cap × 80%** | A week containing a Portugal public holiday loses one of five working days, so **every role's weekly cap is reduced to 80%** that week (floored to the 2h step): e.g. 32 h → 24 h, 16 h → 12 h, 8 h → 6 h. These weeks are lightly highlighted (amber) in the grid. Uses PT national holidays (fixed dates + Good Friday, Easter, Corpus Christi). |
 
 ### Internal spread (how the suggestion distributes per person)
 
