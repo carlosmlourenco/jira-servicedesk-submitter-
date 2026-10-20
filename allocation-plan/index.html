@@ -22,7 +22,6 @@
   .brandbar .logo { width:26px; height:26px; border-radius:6px; background:var(--accent);
     display:inline-flex; align-items:center; justify-content:center; color:var(--brand); font-weight:800; font-size:15px; }
   .brandbar .name { font-weight:700; letter-spacing:.2px; }
-  .brandbar .tag { color:var(--accent); font-size:12px; font-weight:600; }
   /* min-width:0 lets these flow containers shrink to the viewport instead of
      stretching to the wide grid's content width (which, on Windows Chrome, let
      the table overflow and get clipped at 100% zoom). */
@@ -95,19 +94,8 @@
   .skip-link { position:absolute; left:8px; top:-40px; background:var(--brand); color:#fff;
     padding:8px 12px; border-radius:6px; z-index:200; transition:top .15s; }
   .skip-link:focus { top:8px; }
-  /* sticky header + hamburger menu */
+  /* sticky header */
   .brandbar { position:sticky; top:0; z-index:100; }
-  .nav { position:relative; margin-left:auto; }
-  .nav-toggle { background:transparent; border:1px solid var(--accent); color:var(--accent);
-    font-size:18px; line-height:1; padding:4px 10px; border-radius:6px; cursor:pointer; }
-  .nav-menu { position:absolute; right:0; top:calc(100% + 6px); background:#fff; color:var(--ink);
-    border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.15);
-    min-width:180px; padding:6px; display:none; }
-  .nav-menu.open { display:block; }
-  .nav-menu a { display:block; padding:8px 10px; border-radius:6px; color:var(--ink);
-    text-decoration:none; font-size:14px; font-weight:600; }
-  .nav-menu a:hover, .nav-menu a:focus { background:var(--grey); color:var(--brand); }
-  .nav-menu a[aria-current="page"] { background:var(--accent); color:var(--brand); }
   /* responsive: keep the page from scrolling sideways; only tables scroll */
   html, body { width:100%; max-width:100%; overflow-x:hidden; }
   /* main is the flow container for everything; bound it to the viewport so the
@@ -116,7 +104,6 @@
   @media (max-width:640px){
     .wrap { padding:16px 12px; }
     .brandbar { padding:12px 14px; }
-    .brandbar .tag { display:none; }
     fieldset { padding:12px 12px; }
     h1 { font-size:18px; }
     .toolbar { gap:6px; }
@@ -133,12 +120,6 @@
 <body>
   <a href="#main" class="skip-link">Skip to main content</a>
   <div class="brandbar"><span class="logo" aria-hidden="true">C</span><span class="name">CS Allocation Request</span>
-    <nav class="nav">
-      <button class="nav-toggle" id="navToggle" aria-haspopup="true" aria-expanded="false" aria-controls="navMenu" aria-label="Open navigation menu">☰</button>
-      <div class="nav-menu" id="navMenu" role="menu">
-        <a href="index.html" role="menuitem" aria-current="page">PIR</a>
-      </div>
-    </nav>
   </div>
   <main id="main" class="wrap">
   <div id="viewBanner" role="status" aria-live="polite" style="display:none; background:var(--accent); color:var(--brand); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600"></div>
@@ -216,20 +197,6 @@
 
 <script src="submit-pir.js"></script>
 <script>
-// ---------- hamburger navigation menu (accessible) ----------
-(function(){
-  const toggle=document.getElementById("navToggle"), menu=document.getElementById("navMenu");
-  if(!toggle||!menu) return;
-  const open=()=>{ menu.classList.add("open"); toggle.setAttribute("aria-expanded","true");
-    const first=menu.querySelector("a"); if(first) first.focus(); };
-  const close=(focusBack)=>{ menu.classList.remove("open"); toggle.setAttribute("aria-expanded","false");
-    if(focusBack) toggle.focus(); };
-  toggle.addEventListener("click",e=>{ e.stopPropagation();
-    menu.classList.contains("open")?close(false):open(); });
-  document.addEventListener("click",e=>{ if(!menu.contains(e.target)&&e.target!==toggle) close(false); });
-  document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&menu.classList.contains("open")) close(true); });
-})();
-
 const HOURS_PER_DAY=8, FULL_WEEK=5;
 // Weekly allocation is entered in HOURS/week: min 2h, max 32h, step 2h.
 const MIN_H=2, MAX_H=32, STEP_H=2;
