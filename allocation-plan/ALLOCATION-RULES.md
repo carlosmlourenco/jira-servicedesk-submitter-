@@ -6,7 +6,7 @@
 >
 > Portuguese version: [`ALLOCATION-RULES-PT.md`](ALLOCATION-RULES-PT.md)
 >
-> Last updated: 2026-09-14 (per-role rules; 13 roles; unallocated-hours warning; Preferred Area/Seniority dropdowns; holiday-reduced weeks)
+> Last updated: 2026-09-14 (per-role rules; 13 roles; unallocated-hours warning; Preferred Area/Seniority dropdowns; region-gated holiday-reduced weeks + area auto-fill)
 
 ---
 
@@ -23,7 +23,8 @@
 | Duration | **N weeks** (*Duration* field) | Allocation is spread **flat** across the N weeks, starting at the *Start date*. The *End date* is derived. |
 | Never exceeds the breakdown | ✔️ | The suggestion never allocates **more** hours than the role's breakdown. |
 | Hours that do not fit | **not allocated + warning** | Surplus hours are **left unassigned** and a **warning** is shown in the *People* section naming the role and the hours left over. |
-| Holiday-reduced week | **cap × 80%** | A week containing a Portugal public holiday loses one of five working days, so **every role's weekly cap is reduced to 80%** that week (floored to the 2h step): e.g. 32 h → 24 h, 16 h → 12 h, 8 h → 6 h. These weeks are lightly highlighted (amber) in the grid. Uses PT national holidays (fixed dates + Good Friday, Easter, Corpus Christi). |
+| Holiday-reduced week | **cap × 80% (EMEA/GDC/Partner only)** | A week containing a Portugal public holiday loses one of five working days, so **every role's weekly cap is reduced to 80%** that week (floored to the 2h step): e.g. 32 h → 24 h, 16 h → 12 h, 8 h → 6 h. These weeks are lightly highlighted (amber) in the grid. Uses PT national holidays (fixed dates + Good Friday, Easter, Corpus Christi). **Applies only when the project Region is EMEA, GDC or Partner** (PT-staffed). APAC/LATAM/NAMER: no reduction, no highlight. |
+| Project Region | top of the form | A **Region** dropdown (same options as Preferred Area) sits next to Project name. It drives the holiday rule above and pre-fills each suggested row's Preferred Area (editable afterwards). |
 
 ### Internal spread (how the suggestion distributes per person)
 
@@ -48,6 +49,7 @@
 
 - **Preferred Area** (dropdown, **mandatory before Submit**): `APAC` · `EMEA` · `LATAM` · `NAMER` · `GDC` · `Partner`.
   Submit is blocked with a warning if any allocated row (one with weekly hours) has no area.
+  Suggest pre-fills it from the project **Region**; it stays editable per row.
 - **Preferred Seniority** (dropdown, **optional**): `Associate` · `Professional` · `Senior Professional` · `Advanced` · `Expert` · `Principal` · `Senior Principal` · `Manager` · `Senior Manager` · `Director` · `Senior Director`.
 
 ---
