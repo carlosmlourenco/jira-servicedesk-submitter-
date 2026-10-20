@@ -40,6 +40,9 @@
   td input, td select { border:none; width:100%; text-align:center; padding:4px; background:transparent; color:var(--ink); }
   td.wk input { width:52px; }
   td.meta input, td.meta select { min-width:120px; text-align:left; }
+  /* Invalid field: red border + tinted background. Colour is never the only cue —
+     the error text in #warnings and aria-invalid/aria-describedby carry it too. */
+  td .invalid, .invalid { border:2px solid var(--bad) !important; background:#fbe1de !important; }
   .btn { font:inherit; font-weight:700; padding:8px 14px; border:none; border-radius:6px; cursor:pointer; }
   .btn-primary { background:var(--accent); color:var(--accent-ink); }
   .btn-primary:hover { filter:brightness(0.96); }
@@ -746,16 +749,36 @@ function submitPir(){
   // gridRows reflects the current grid.
   generate();
   // Preferred Area is mandatory: block submit if any allocated row has no area.
-  const missingArea=gridRows.filter(r=>{
+  // Accessible error handling: besides the red highlight (colour), each invalid
+  // field is marked aria-invalid, described by the error text, and the first one
+  // receives focus — so the problem is conveyed by more than colour alone.
+  const w=document.getElementById("warnings");
+  const errId="warn-area-required";
+  const invalid=[]; const missingRoles=new Set();
+  document.querySelectorAll("#gridBody tr").forEach(tr=>{
+    const r=rowData(tr);
     const hasHours=r.weekly.some(v=>(parseFloat(v)||0)>0);
-    return hasHours && !(r.area||"").trim();
+    const sel=tr.querySelector("td.meta.area select"); if(!sel) return;
+    const bad=hasHours && !(r.area||"").trim();
+    if(bad){
+      invalid.push(sel); missingRoles.add(r.role||"(no role)");
+      sel.classList.add("invalid"); sel.setAttribute("aria-invalid","true");
+      sel.setAttribute("aria-describedby", errId);
+      if(!sel.dataset.areaWatched){     // clear the highlight once a value is picked
+        sel.dataset.areaWatched="1";
+        sel.addEventListener("change",()=>{ if(sel.value){ sel.classList.remove("invalid");
+          sel.removeAttribute("aria-invalid"); sel.removeAttribute("aria-describedby"); } });
+      }
+    } else {
+      sel.classList.remove("invalid"); sel.removeAttribute("aria-invalid"); sel.removeAttribute("aria-describedby");
+    }
   });
-  if(missingArea.length){
-    const roles=[...new Set(missingArea.map(r=>r.role||"(no role)"))];
-    const w=document.getElementById("warnings");
-    const msg=`Preferred Area is mandatory before submitting. Set it for: ${roles.join(", ")}.`;
-    w.textContent=(w.textContent?w.textContent+"\n":"")+"⚠️ "+msg;
-    w.scrollIntoView&&w.scrollIntoView({behavior:"smooth",block:"center"});
+  if(invalid.length){
+    const msg=`Preferred Area is mandatory before submitting. Set it for: ${[...missingRoles].join(", ")}.`;
+    w.textContent=(w.textContent?w.textContent+"\n":"")+"⚠️ "+msg;   // #warnings is role=alert aria-live
+    invalid.forEach(sel=>sel.setAttribute("aria-describedby","warnings"));
+    invalid[0].focus();
+    invalid[0].scrollIntoView&&invalid[0].scrollIntoView({behavior:"smooth",block:"center"});
     return;   // do not open the submit dialog
   }
   const proj=(document.getElementById("projName").value||"").trim()||"(unnamed project)";
