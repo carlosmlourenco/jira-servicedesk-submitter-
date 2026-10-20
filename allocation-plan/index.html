@@ -148,7 +148,6 @@
 
   <div class="toolbar">
     <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
-    <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
   </div>
   </main>
 
@@ -338,28 +337,10 @@ function download(){
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name+"-plan.csv"; a.click();
 }
 
-function loadTwint(){
-  document.getElementById("projName").value="twint";
-  document.getElementById("startDate").value="2026-09-14";
-  document.getElementById("endDate").value="2026-12-31";
-  document.getElementById("costId").value="12-346-7";
-  rebuildWeeks();
-  // truncate weeks at 14/12 for the 400h-cap example by using end 14/12
-  document.getElementById("endDate").value="2026-12-14";
-  rebuildWeeks();
-  document.getElementById("gridBody").innerHTML="";
-  addRow({name:"Carlos Lourenco",role:"Project Manager",weekly:Array(weeks.length).fill("0.25")});
-  addRow({name:"Miguel Pereira",role:"Data Scientist",weekly:["2.5","","3.5","2.5","3.5","3.5","3.5","3.5","3.5","3.5","3.5","2.5","2.5","3.5"]});
-  const clara=Array(weeks.length).fill(""); clara[1]="3.5";
-  addRow({name:"Clara Pereira",role:"Data Scientist",weekly:clara});
-  recompute();
-}
-
 document.getElementById("startDate").addEventListener("change",rebuildWeeks);
 document.getElementById("endDate").addEventListener("change",rebuildWeeks);
 document.getElementById("addRow").addEventListener("click",()=>{ addRow(); recompute(); });
 document.getElementById("download").addEventListener("click",download);
-document.getElementById("loadTwint").addEventListener("click",loadTwint);
 
 // initial default dates: today + EOY
 (function(){

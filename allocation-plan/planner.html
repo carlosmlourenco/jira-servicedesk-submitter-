@@ -173,7 +173,6 @@
   <div class="toolbar">
     <span id="capPill" class="pill ok" role="status" aria-live="polite">Allocated — / — h</span>
     <button class="btn btn-primary" id="download">⬇ Download plan CSV</button>
-    <button class="btn btn-ghost" id="loadTwint">Load twint example</button>
   </div>
   </main>
 
@@ -619,18 +618,6 @@ function download(){ const csv=toCSV();
   const b=new Blob([csv],{type:"text/csv"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=name+"-plan.csv"; a.click();
 }
 
-function loadTwint(){
-  document.getElementById("projName").value="twint";
-  document.getElementById("startDate").value="2026-09-14";
-  document.getElementById("endDate").value="2026-12-31";
-  document.getElementById("costId").value="12-346-7";
-  document.getElementById("totalHours").value="400";
-  document.getElementById("planRows").innerHTML="";
-  addPlanRow({name:"Carlos Lourenco",role:"Project Manager",cap:0.25,city:"Lisbon"});
-  addPlanRow({name:"Miguel Pereira",role:"Data Scientist",cap:3.5,city:"Lisbon",pto:"18/09/2026-25/09/2026",backup:"Clara Pereira"});
-  generate();
-}
-
 // ---------- Calendar (.ics) import: fill PTO by name ----------
 let icsEvents=null;   // parsed [{summary, start:Date, endInclusive:Date}]
 const OOO_SUFFIX="- Out of Office";
@@ -714,7 +701,6 @@ document.getElementById("copyLink").addEventListener("click",copyShareLink);
 document.getElementById("addPlan").addEventListener("click",()=>addPlanRow());
 document.getElementById("generate").addEventListener("click",generate);
 document.getElementById("download").addEventListener("click",download);
-document.getElementById("loadTwint").addEventListener("click",loadTwint);
 (function(){
   // If opened via a shared plan link (#id=...&d=...), render that plan.
   if(tryLoadFromURL()) return;

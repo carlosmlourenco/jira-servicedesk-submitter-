@@ -169,7 +169,6 @@
       <span class="muted" style="font-size:12px">Hours per role. The suggestion never allocates more than these; it may fall slightly short.</span>
     </div>
     <div class="toolbar" style="justify-content:center">
-      <button class="btn btn-ghost" id="loadExample">Load example</button>
       <button class="btn btn-primary" id="suggest">✨ Suggest allocation</button>
     </div>
     <div class="muted" id="suggestNote" role="status" aria-live="polite" style="font-size:12px; margin-top:6px; text-align:center"></div>
@@ -740,24 +739,11 @@ function tryLoadFromURL(){
   }catch(e){ console.error("Invalid PIR link",e); return false; }
 }
 
-function loadExample(){
-  document.getElementById("projName").value="example";
-  document.getElementById("startDate").value="2026-09-14";
-  document.getElementById("durationWeeks").value="5";
-  document.getElementById("rolesGrid").innerHTML="";
-  document.getElementById("rolesGridExpand").innerHTML=""; Object.keys(bpe).forEach(k=>delete bpe[k]);
-  Object.assign(bpe,{"Project Manager":160,"Data Scientist":160,"Business Analyst":80}); renderBreakdown();
-  document.querySelectorAll(".bpe-input").forEach(inp=>{ const role=inp.dataset.role; if(bpe[role]!=null) inp.value=bpe[role]; });
-  updateBreakdownPill(); syncEndDate();
-  suggestAllocation();   // demonstrates the suggestion based on duration
-}
-
 document.getElementById("addRow").addEventListener("click",()=>{addRow();render();});
 document.getElementById("suggest").addEventListener("click",suggestAllocation);
 document.getElementById("generate").addEventListener("click",generate);
 document.getElementById("download").addEventListener("click",download);
 document.getElementById("copyLink").addEventListener("click",copyShareLink);
-document.getElementById("loadExample").addEventListener("click",loadExample);
 
 // ---------- Submit PIR to the Jira Service Desk ----------
 // Jira portal URL used by the local (file://) fallback to open the form.
@@ -824,8 +810,12 @@ function syncEndDate(){
   const endFri=new Date(endMon); endFri.setDate(endFri.getDate()+4);
   out.value=`${endFri.getFullYear()}-${pad(endFri.getMonth()+1)}-${pad(endFri.getDate())}`;
 }
-document.getElementById("startDate").addEventListener("change",syncEndDate);
-document.getElementById("durationWeeks").addEventListener("input",syncEndDate);
+// When the Start date or Duration changes, refresh the end date AND rebuild the
+// week columns so the table reflects the new window. Existing allocations stay by
+// column index (option 3); the user clicks "Suggest allocation" to realign them.
+function onTimelineChange(){ syncEndDate(); rebuildWeeks(); }
+document.getElementById("startDate").addEventListener("change",onTimelineChange);
+document.getElementById("durationWeeks").addEventListener("input",onTimelineChange);
 
 function nextMonday(from){
   const d=new Date(from); const day=d.getDay();           // 0=Sun..6=Sat
