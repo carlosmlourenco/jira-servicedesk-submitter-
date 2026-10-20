@@ -6,7 +6,7 @@
 >
 > Portuguese version: [`ALLOCATION-RULES-PT.md`](ALLOCATION-RULES-PT.md)
 >
-> Last updated: 2026-09-14 (detailed per-role rules; 13 roles; unallocated-hours warning)
+> Last updated: 2026-09-14 (per-role rules; 13 roles; unallocated-hours warning; Preferred Area/Seniority dropdowns)
 
 ---
 
@@ -42,6 +42,12 @@
 ### Allocation Type (cross-cutting rule)
 
 - Options: `add` · `remove` · `split` · `swap` — one per line, **default `add`**.
+
+### Preferred Area / Preferred Seniority (cross-cutting rule)
+
+- **Preferred Area** (dropdown, **mandatory before Submit**): `APAC` · `EMEA` · `LATAM` · `NAMER` · `GDC` · `Partner`.
+  Submit is blocked with a warning if any allocated row (one with weekly hours) has no area.
+- **Preferred Seniority** (dropdown, **optional**): `Associate` · `Professional` · `Senior Professional` · `Advanced` · `Expert` · `Principal` · `Senior Principal` · `Manager` · `Senior Manager` · `Director` · `Senior Director`.
 
 ---
 

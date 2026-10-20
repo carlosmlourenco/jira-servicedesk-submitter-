@@ -10,7 +10,7 @@
 > *O texto portugues omite acentos e cedilha de proposito, para evitar problemas
 > de codificacao.*
 >
-> Ultima atualizacao: 2026-09-14 (regras por role detalhadas; 13 roles; aviso de horas por alocar)
+> Ultima atualizacao: 2026-09-14 (regras por role; 13 roles; aviso de horas por alocar; dropdowns Preferred Area/Seniority)
 
 ---
 
@@ -46,6 +46,12 @@
 ### Allocation Type (regra transversal)
 
 - Opcoes: `add` · `remove` · `split` · `swap` — uma por linha, **default `add`**.
+
+### Preferred Area / Preferred Seniority (regra transversal)
+
+- **Preferred Area** (dropdown, **obrigatorio antes de Submit**): `APAC` · `EMEA` · `LATAM` · `NAMER` · `GDC` · `Partner`.
+  O Submit e bloqueado com um aviso se alguma linha alocada (com horas semanais) nao tiver area.
+- **Preferred Seniority** (dropdown, **opcional**): `Associate` · `Professional` · `Senior Professional` · `Advanced` · `Expert` · `Principal` · `Senior Principal` · `Manager` · `Senior Manager` · `Director` · `Senior Director`.
 
 ---
 
