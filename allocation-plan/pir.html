@@ -34,10 +34,23 @@
   .hdr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
   table { border-collapse:collapse; width:100%; font-size:12px; }
   th, td { border:1px solid var(--line); padding:4px 6px; text-align:center; white-space:nowrap; }
+  /* The people grid can be very wide (10 fixed cols + N week cols). Let it size to
+     its content and scroll horizontally inside .scroll, instead of width:100% which
+     squeezes columns inconsistently across browsers (e.g. Windows Chrome). */
+  #grid { width:max-content; min-width:100%; table-layout:auto; }
+  /* Firm widths so columns never collapse to nothing on any browser. */
+  #grid td.wk, #grid th { min-width:56px; }
   th { background:var(--brand); color:#fff; font-weight:600; }
   td.calc { background:var(--grey); color:var(--brand); font-variant-numeric:tabular-nums; }
-  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
-  td input, td select { border:none; width:100%; text-align:center; padding:4px; background:transparent; color:var(--ink); }
+  /* Horizontal scroller for the wide grid. width:100% + max-width:100% pins it to
+     the container so the max-content table scrolls INSIDE it (and is never clipped
+     by the page-level overflow-x:hidden) consistently across browsers/OS.
+     -webkit-overflow-scrolling gives momentum scroll on touch. */
+  .scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; width:100%; max-width:100%;
+    border:1px solid var(--line); border-radius:10px; }
+  td input, td select { border:none; width:100%; max-width:100%; text-align:center; padding:4px; background:transparent; color:var(--ink); }
+  /* Native selects size differently per-OS; keep them from overflowing their cell. */
+  td select { -webkit-appearance:menulist; appearance:menulist; }
   td.wk input { width:52px; }
   /* Holiday-reduced week: light amber tint (same as the auto-planner). */
   td.wk.hol { background:#fff4e0; }
@@ -888,19 +901,12 @@ function nextMonday(from){
   const add=((8-day)%7)||7;                                // days until NEXT Monday (never today)
   d.setDate(d.getDate()+add); d.setHours(0,0,0,0); return d;
 }
-// ---------- progressive reveal (online only) ----------
-// Online, keep the first impression simple: hide People/PIR/actions until the
-// user clicks Suggest (or Load example). Local (file://) shows everything.
-const IS_ONLINE = (location.protocol === "http:" || location.protocol === "https:");
+// The People table + actions are always visible (local or hosted). `revealAll`
+// is kept as a safety net in case anything ever hides them.
 function setHidden(id, hidden){ const n=document.getElementById(id); if(n) n.style.display = hidden ? "none" : ""; }
-function hideDownstream(){
-  setHidden("peopleSection", true); setHidden("actionBar", true);
-}
 function revealAll(){
   setHidden("peopleSection", false); setHidden("actionBar", false);
 }
-document.getElementById("suggest").addEventListener("click", revealAll);
-document.getElementById("loadExample").addEventListener("click", revealAll);
 
 // Fill the Region dropdown (same options as Preferred Area) once.
 function populateRegion(){
@@ -925,7 +931,9 @@ document.getElementById("region").addEventListener("change",()=>{ renderHead();
   document.getElementById("durationWeeks").value="8";
   syncEndDate();
   rebuildWeeks();   // builds week columns + a starting empty row
-  if(IS_ONLINE) hideDownstream();   // simpler first impression when served online
+  // Always show the People table + actions, local or hosted. Hiding them online
+  // made the table look "missing" when served (e.g. via a tunnel on Windows),
+  // so the page now behaves identically regardless of how it is opened.
 })();
 </script>
 </body>
