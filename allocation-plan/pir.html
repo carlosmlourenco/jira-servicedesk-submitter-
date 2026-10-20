@@ -482,12 +482,16 @@ function render(){
 
 // ---------- CSV ("Request" layout) ----------
 function csvEscape(v){v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
-// full dd/mm/yyyy for a week's Monday
-function weekDate(w){ const d=w.mon; return pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear(); }
+// All dates in the CSV use ISO yyyy-mm-dd. ISO is unambiguous: a spreadsheet
+// cannot swap day/month, the year is always 4 digits and day/month always 2,
+// so the exported dates never get re-interpreted or reformatted on import.
+function isoDate(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function weekDate(w){ return isoDate(w.mon); }
 function toCSV(){
   const proj=document.getElementById("projName").value;
   const sV=document.getElementById("startDate").value, eV=document.getElementById("endDate").value;
-  const d2=s=>s?s.split("-").reverse().join("/"):"";
+  // startDate/endDate inputs are already yyyy-mm-dd; keep them as-is (ISO).
+  const d2=s=>s||"";
   const L=[];
   // project header block
   L.push([proj,"","","(Mandatory fields)","Project Start date",d2(sV)]);
